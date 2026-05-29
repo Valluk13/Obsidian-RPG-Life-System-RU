@@ -7,13 +7,13 @@ class RPG_Engine {
             potionHeal: 25,
             xpPerLevel: 1000,
             itemDb: {
-                'potion': { name: 'Зелье Лечения (+25 HP)', cost: 150 },
-                'walk': { name: 'Длинная прогулка на улице', cost: 60 },
-                'tea': { name: 'Чайная церемония (Релакс)', cost: 120 },
-                'youtube': { name: '1 Час YouTube / Стримов', cost: 180 },
-                'games': { name: '1 Час video-games / ПК', cost: 220 },
-                'social': { name: '1 Час соцсетей / Reels', cost: 250 },
-                'dayoff': { name: 'Полный день отдыха', cost: 1200 }
+                'potion': { name: 'Healing Potion (+25 HP)', cost: 150 },
+                'walk': { name: 'Long Walk Outside', cost: 60 },
+                'tea': { name: 'Tea Ceremony (Relax)', cost: 120 },
+                'youtube': { name: '1 Hour of YouTube / Streams', cost: 180 },
+                'games': { name: '1 Hour of Gaming / PC', cost: 220 },
+                'social': { name: '1 Hour of Social Media / Reels', cost: 250 },
+                'dayoff': { name: 'Full Day Off', cost: 1200 }
             }
         };
         this._contextPromise = null;
@@ -22,9 +22,9 @@ class RPG_Engine {
 
     calculateQuestBonus(diffStr) {
         let d = String(diffStr || "").toLowerCase();
-        if (d.includes("легкий")) return { xp: 20, gp: 25, isMain: true, dmg: 5 };
-        if (d.includes("средний")) return { xp: 50, gp: 50, isMain: true, dmg: 15 };
-        if (d.includes("сложный")) return { xp: 100, gp: 100, isMain: true, dmg: 30 };
+        if (d.includes("easy")) return { xp: 20, gp: 25, isMain: true, dmg: 5 };
+        if (d.includes("medium")) return { xp: 50, gp: 50, isMain: true, dmg: 15 };
+        if (d.includes("hard")) return { xp: 100, gp: 100, isMain: true, dmg: 30 };
         return { xp: 0, gp: 0, isMain: false, dmg: 0 };
     }
 
@@ -52,7 +52,6 @@ class RPG_Engine {
         let monthTagMap = {};
         let globalTagMap = {};
 
-        // Карта фокуса за 35 дней
         for (let i = 34; i >= 0; i--) { focusMap[window.moment().subtract(i, 'days').format("YYYY-MM-DD")] = 0; }
 
         for (let page of dailyLogs) {
@@ -61,7 +60,6 @@ class RPG_Engine {
             let dFocus = parseInt(fm.focus_mins) || 0;
             let hasFailedToday = false;
             
-            // 1. Сбор времени из YAML
             globalStats.focus += dFocus;
             globalStats.routine += parseInt(fm.routine_mins) || 0;
             globalStats.rest += parseInt(fm.rest_mins) || 0;
@@ -70,7 +68,6 @@ class RPG_Engine {
             let dailyTimeXp = parseInt(fm.daily_xp) || 0;
             let dailyTimeGold = parseInt(fm.daily_gold) || 0;
 
-            // 2. Сбор тегов из YAML
             if (fm.tags_stat) {
                 for (let [tag, mins] of Object.entries(fm.tags_stat)) {
                     globalTagMap[tag] = (globalTagMap[tag] || 0) + mins;
@@ -78,7 +75,6 @@ class RPG_Engine {
                 }
             }
 
-            // 3. Парсинг Квестов (чекбоксов) через кэш Dataview
             let dailyQuestXp = 0, dailyQuestGold = 0;
             let tasks = page.file.tasks ? (page.file.tasks.values || Array.from(page.file.tasks)) : [];
             
@@ -116,8 +112,8 @@ class RPG_Engine {
             globalStats.questGold += (dailyTimeGold + dailyQuestGold);
 
             globalStats.hpDamage += parseInt(fm.hp_lost) || 0;
-            if (!isToday && dFocus === 0) globalStats.hpDamage += 10; // Штраф за пропуск дня
-            if (dFocus >= 60 && !hasFailedToday) globalStats.hpDamage -= 10; // Хилл за фокус
+            if (!isToday && dFocus === 0) globalStats.hpDamage += 10; 
+            if (dFocus >= 60 && !hasFailedToday) globalStats.hpDamage -= 10; 
 
             if (focusMap[page.file.name] !== undefined) focusMap[page.file.name] = dFocus;
 
@@ -129,10 +125,8 @@ class RPG_Engine {
             }
         }
 
-        // --- РАСЧЕТ ИТОГОВ (HP, ЗОЛОТО, ОПЫТ) ---
         let profileSpent = parseInt(profileFm.gold_spent) || 0;
         
-        // Подсчет выпитых зелий из профиля
         let totalPotions = parseInt(profileFm.total_potions_consumed) || 0;
         let potionsHistory = profileFm.potions_history || {};
         for (let d in potionsHistory) { totalPotions += (parseInt(potionsHistory[d]) || 0); }
@@ -150,18 +144,18 @@ class RPG_Engine {
         let xpInCurrentLevel = totalXpEarned % this.CONFIG.xpPerLevel;
         let progressPercent = Math.floor((xpInCurrentLevel / this.CONFIG.xpPerLevel) * 100);
         
-        let title = "🔮 Адепт-Новичок";
-        if (currentLevel >= 10) title = "📜 Искатель Знаний";
-        if (currentLevel >= 25) title = "📐 Магистр Уравнений";
-        if (currentLevel >= 50) title = "💻 Разрушитель Кода";
-        if (currentLevel >= 100) title = "🌌 Верховный Мудрец БД";
+        let title = "🔮 Novice Adept";
+        if (currentLevel >= 10) title = "📜 Knowledge Seeker";
+        if (currentLevel >= 25) title = "📐 Master of Equations";
+        if (currentLevel >= 50) title = "💻 Code Breaker";
+        if (currentLevel >= 100) title = "🌌 Supreme Database Sage";
+        if (currentLevel >= 250) title = "👑 Architect of Reality";
 
         const builtData = {
             currentGold, currentHp, totalXpEarned, currentLevel, xpInCurrentLevel, progressPercent,
             title, focusMap, zettelCount: zettelConcepts.length, 
             todayStats, monthTagMap, globalTagMap, 
             
-            // ВАЖНО: Восстановлено для работы "Доски Долгов"
             logsArray: dailyLogs.values || Array.from(dailyLogs),
             archiveCutoff: profileFm.archive_cutoff || "2000-01-01",
 

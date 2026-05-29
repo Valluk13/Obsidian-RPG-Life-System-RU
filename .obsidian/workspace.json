@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "06_Templates/Daily Note Template.md",
+                "file": "README.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Daily Note Template"
+              "title": "README"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "06_Templates/Daily Note Template.md",
+                "file": "README.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Обратные ссылки для Daily Note Template"
+              "title": "Обратные ссылки для README"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "06_Templates/Daily Note Template.md",
+                "file": "README.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Исходящие ссылки из Daily Note Template"
+              "title": "Исходящие ссылки из README"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "06_Templates/Daily Note Template.md",
+                "file": "README.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Структура Daily Note Template"
+              "title": "Структура README"
             }
           }
         ]
@@ -181,19 +181,21 @@
       "templates:Вставить шаблон": false,
       "command-palette:Открыть палитру команд": false,
       "bases:Создать новую базу": false,
-      "templater-obsidian:Templater": false
+      "templater-obsidian:Templater": false,
+      "obsidian-git:Open Git source control": false
     }
   },
   "active": "d57fc72be9eb471c",
   "lastOpenFiles": [
-    "Текстовый документ.txt",
+    "01_Dashboard/01_Hall_of_Fame.md",
+    "README.md",
+    "06_Templates/Daily Note Template.md",
     "01_Dashboard/Homepage.md",
     "01_Dashboard/03_Backpack.md",
     "01_Dashboard/02_Shop.md",
-    "01_Dashboard/01_Hall_of_Fame.md",
     "01_Dashboard/00_Profile.md",
+    "Текстовый документ.txt",
     "01_Dashboard/01_Hall_of_Fame",
-    "06_Templates/Daily Note Template.md",
     "01_Dashboard 1",
     "99_System/Scripts/RPG_Engine.js",
     "04_Zettelkasten/Без названия.md",
@@ -203,7 +205,6 @@
     "04_Zettelkasten/01_Sources.md",
     "04_Zettelkasten/01_Sources",
     "07_Assets/Pictures",
-    "99_System/Scripts",
-    "08_Archive"
+    "99_System/Scripts"
   ]
 }
