@@ -18,7 +18,6 @@ banner: https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format
         const profilePage = dv.page("01_Dashboard/00_Profile.md");
         const profileFile = app.vault.getAbstractFileByPath(profilePage.file.path);
         
-        // Получаем контекст из нового движка
         const ctx = await engine.getSharedContext(dv, profilePage);
 
         const isTraumatized = ctx.currentHp <= 0;
@@ -47,7 +46,7 @@ banner: https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format
             .hud-bar { display: flex; flex-direction: column; gap: 4px; }
             .hud-label { display: flex; justify-content: space-between; font-size: 0.8em; font-weight: bold; text-transform: uppercase; color: var(--text-muted); }
             .hud-bg { background: rgba(0,0,0,0.3); height: 10px; border-radius: 5px; overflow: hidden; border: 1px solid rgba(255,255,255,0.03); }
-            .hud-fill { height: 100%; transition: width 0.4s ease; }
+            .hud-fill { height: 100%; transition: width 0.4s ease, background-color 0.4s ease; }
             .heal-trigger-btn { background: rgba(46, 204, 113, 0.08); border: 1px dashed rgba(46, 204, 113, 0.3); color: #2ecc71; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 0.9em; cursor: pointer; transition: 0.15s; text-align: center; width: 100%; box-sizing: border-box; box-shadow: none !important; }
             .heal-trigger-btn:hover:not(:disabled) { background: #2ecc71; color: black; border-style: solid; }
             .heal-trigger-btn:disabled { opacity: 0.25; cursor: not-allowed; }
@@ -142,10 +141,24 @@ banner: https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format
                         f.potions_history[todayStr] = (parseInt(f.potions_history[todayStr]) || 0) + 1;
                     }
                 });
+                
+                engine.invalidateCache(); 
+                
+                const newHp = Math.min(100, ctx.currentHp + 25);
+                hpBg.querySelector('.hud-fill').style.width = `${newHp}%`;
+                hpLabels.querySelectorAll('span')[1].innerText = `${newHp}/100`;
+                
+                if (newHp > 50) hpBg.querySelector('.hud-fill').style.background = '#2ed573';
+                else if (newHp > 20) hpBg.querySelector('.hud-fill').style.background = '#ffa502';
+
                 new Notice("✅ Здоровье успешно восстановлено!");
             } catch(err) {
                 new Notice("Ошибка применения: " + err.message);
                 healBtn.disabled = false;
+            } finally {
+                setTimeout(() => {
+                    if (healBtn && document.body.contains(healBtn)) healBtn.innerText = "✅ Использовано";
+                }, 500);
             }
         });
 
@@ -245,7 +258,7 @@ banner: https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format
                     app.workspace.getLeaf(false).openFile(app.vault.getAbstractFileByPath(z.file.path));
                 });
                 
-                headerDiv.createEl('span', { cls: 'loot-date', text: window.moment(z.file.ctime.toString()).format("DD.MM") });
+                headerDiv.createEl('span', { cls: 'loot-date', text: z.file.ctime.toFormat("dd.MM") });
             });
         } else {
             lootPanel.createEl('div', { text: "Трофеев не найдено.", attr: { style: "font-size:0.85em; color:var(--text-muted); font-style:italic;" } });

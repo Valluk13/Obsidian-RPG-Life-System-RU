@@ -7,24 +7,29 @@ class RPG_Engine {
             potionHeal: 25,
             xpPerLevel: 1000,
             itemDb: {
-                'potion': { name: 'Healing Potion (+25 HP)', cost: 150 },
-                'walk': { name: 'Long Walk Outside', cost: 60 },
-                'tea': { name: 'Tea Ceremony (Relax)', cost: 120 },
-                'youtube': { name: '1 Hour of YouTube / Streams', cost: 180 },
-                'games': { name: '1 Hour of Gaming / PC', cost: 220 },
-                'social': { name: '1 Hour of Social Media / Reels', cost: 250 },
-                'dayoff': { name: 'Full Day Off', cost: 1200 }
+                'potion': { name: 'Зелье Лечения (+25 HP)', cost: 150 },
+                'walk': { name: 'Длинная прогулка на улице', cost: 60 },
+                'tea': { name: 'Чайная церемония (Релакс)', cost: 120 },
+                'youtube': { name: '1 Час YouTube / Стримов', cost: 180 },
+                'games': { name: '1 Час video-games / ПК', cost: 220 },
+                'social': { name: '1 Час соцсетей / Reels', cost: 250 },
+                'dayoff': { name: 'Полный день отдыха', cost: 1200 }
             }
         };
         this._contextPromise = null;
         this._lastCacheTime = 0;
     }
 
+    invalidateCache() {
+        this._contextPromise = null;
+        this._lastCacheTime = 0;
+    }
+
     calculateQuestBonus(diffStr) {
         let d = String(diffStr || "").toLowerCase();
-        if (d.includes("easy")) return { xp: 20, gp: 25, isMain: true, dmg: 5 };
-        if (d.includes("medium")) return { xp: 50, gp: 50, isMain: true, dmg: 15 };
-        if (d.includes("hard")) return { xp: 100, gp: 100, isMain: true, dmg: 30 };
+        if (d.includes("легкий")) return { xp: 20, gp: 25, isMain: true, dmg: 5 };
+        if (d.includes("средний")) return { xp: 50, gp: 50, isMain: true, dmg: 15 };
+        if (d.includes("сложный")) return { xp: 100, gp: 100, isMain: true, dmg: 30 };
         return { xp: 0, gp: 0, isMain: false, dmg: 0 };
     }
 
@@ -43,39 +48,67 @@ class RPG_Engine {
 
     async buildContext(dv, profileFm) {
         const todayStr = window.moment().format("YYYY-MM-DD");
+        const currentMonthStr = window.moment().format("YYYY-MM");
         const dailyLogs = dv.pages(this.CONFIG.journalPath);
         const zettelConcepts = dv.pages(this.CONFIG.zettelPath).where(p => p.file.size > 50 && p.file.folder.includes('02_Concepts'));
         
-        let globalStats = { focus: 0, routine: 0, rest: 0, waste: 0, questXp: 0, questGold: 0, hpDamage: 0, tasksCompleted: 0 };
+        let globalStats = { focus: 0, routine: 0, rest: 0, waste: 0, tasksCompleted: 0 };
+        let monthStats = { focus: 0, routine: 0, rest: 0, waste: 0, tasksCompleted: 0 };
         let todayStats = { focus: 0, routine: 0, rest: 0, procrastinate: 0 };
+        
         let focusMap = {};
         let monthTagMap = {};
         let globalTagMap = {};
 
         for (let i = 34; i >= 0; i--) { focusMap[window.moment().subtract(i, 'days').format("YYYY-MM-DD")] = 0; }
 
-        for (let page of dailyLogs) {
-            let fm = page.file.frontmatter || {};
+        let sortedLogs = [...dailyLogs].sort((a, b) => a.file.name.localeCompare(b.file.name));
+
+        let runningHp = this.CONFIG.maxHp;
+        let accumulatedQuestXp = 0;
+        let accumulatedQuestGold = 0;
+        let lifetimeGold = 0;
+
+        let potionsHistory = profileFm.potions_history || {};
+
+        for (let page of sortedLogs) {
+            let fm = page; 
             let isToday = (page.file.name === todayStr);
+            let isCurrentMonth = page.file.name.startsWith(currentMonthStr);
+            
             let dFocus = parseInt(fm.focus_mins) || 0;
+            let dRoutine = parseInt(fm.routine_mins) || 0;
+            let dRest = parseInt(fm.rest_mins) || 0;
+            let dWaste = parseInt(fm.waste_mins) || 0;
             let hasFailedToday = false;
             
             globalStats.focus += dFocus;
-            globalStats.routine += parseInt(fm.routine_mins) || 0;
-            globalStats.rest += parseInt(fm.rest_mins) || 0;
-            globalStats.waste += parseInt(fm.waste_mins) || 0;
+            globalStats.routine += dRoutine;
+            globalStats.rest += dRest;
+            globalStats.waste += dWaste;
+            
+            if (isCurrentMonth) {
+                monthStats.focus += dFocus;
+                monthStats.routine += dRoutine;
+                monthStats.rest += dRest;
+                monthStats.waste += dWaste;
+            }
             
             let dailyTimeXp = parseInt(fm.daily_xp) || 0;
             let dailyTimeGold = parseInt(fm.daily_gold) || 0;
 
             if (fm.tags_stat) {
-                for (let [tag, mins] of Object.entries(fm.tags_stat)) {
+                let tagsObj = Object.assign({}, fm.tags_stat);
+                for (let [tag, mins] of Object.entries(tagsObj)) {
                     globalTagMap[tag] = (globalTagMap[tag] || 0) + mins;
-                    monthTagMap[tag] = (monthTagMap[tag] || 0) + mins;
+                    if (isCurrentMonth) {
+                        monthTagMap[tag] = (monthTagMap[tag] || 0) + mins;
+                    }
                 }
             }
 
-            let dailyQuestXp = 0, dailyQuestGold = 0;
+            let dailyQuestXp = 0;
+            let dailyQuestGold = 0;
             let tasks = page.file.tasks ? (page.file.tasks.values || Array.from(page.file.tasks)) : [];
             
             for (let t of tasks) {
@@ -90,7 +123,7 @@ class RPG_Engine {
 
                 if (isFailed) {
                     hasFailedToday = true;
-                    if (bonus.isMain) globalStats.hpDamage += bonus.dmg;
+                    if (bonus.isMain) runningHp -= bonus.dmg;
                     continue; 
                 }
 
@@ -98,6 +131,8 @@ class RPG_Engine {
 
                 if (isCompleted || isPartial) {
                     globalStats.tasksCompleted += 1;
+                    if (isCurrentMonth) monthStats.tasksCompleted += 1;
+                    
                     if (bonus.isMain) {
                         dailyQuestXp += Math.floor(bonus.xp * multiplier);
                         dailyQuestGold += Math.floor(bonus.gp * multiplier);
@@ -108,60 +143,67 @@ class RPG_Engine {
                 }
             }
 
-            globalStats.questXp += (dailyTimeXp + dailyQuestXp);
-            globalStats.questGold += (dailyTimeGold + dailyQuestGold);
+            runningHp -= (parseInt(fm.hp_lost) || 0);
+            let potionsToday = parseInt(potionsHistory[page.file.name]) || 0;
+            runningHp += (potionsToday * this.CONFIG.potionHeal);
 
-            globalStats.hpDamage += parseInt(fm.hp_lost) || 0;
-            if (!isToday && dFocus === 0) globalStats.hpDamage += 10; 
-            if (dFocus >= 60 && !hasFailedToday) globalStats.hpDamage -= 10; 
+            let pageDate = window.moment(page.file.name, "YYYY-MM-DD");
+            let isRecent = pageDate.isValid() && window.moment().diff(pageDate, 'days') <= 14;
+            
+            if (isRecent && fm.day_off !== true) {
+                if (!isToday && dFocus === 0) runningHp -= 10;
+                if (dFocus >= 60 && !hasFailedToday) runningHp += 10;
+            }
+
+            runningHp = Math.max(0, Math.min(this.CONFIG.maxHp, runningHp));
+
+            let dayXpSum = dailyTimeXp + dailyQuestXp;
+            let dayGoldSum = dailyTimeGold + dailyQuestGold;
+
+            if (isToday && runningHp <= 0) {
+                dayGoldSum = Math.floor(dayGoldSum * 0.5);
+            }
+
+            accumulatedQuestXp += dayXpSum;
+            accumulatedQuestGold += dayGoldSum;
+            lifetimeGold += dayGoldSum;
 
             if (focusMap[page.file.name] !== undefined) focusMap[page.file.name] = dFocus;
 
             if (isToday) {
                 todayStats.focus = dFocus;
-                todayStats.routine = parseInt(fm.routine_mins) || 0;
-                todayStats.rest = parseInt(fm.rest_mins) || 0;
-                todayStats.procrastinate = parseInt(fm.waste_mins) || 0;
+                todayStats.routine = dRoutine;
+                todayStats.rest = dRest;
+                todayStats.procrastinate = dWaste;
             }
         }
 
         let profileSpent = parseInt(profileFm.gold_spent) || 0;
-        
-        let totalPotions = parseInt(profileFm.total_potions_consumed) || 0;
-        let potionsHistory = profileFm.potions_history || {};
-        for (let d in potionsHistory) { totalPotions += (parseInt(potionsHistory[d]) || 0); }
-        
-        let currentHp = this.CONFIG.maxHp + (totalPotions * this.CONFIG.potionHeal) - globalStats.hpDamage;
-        currentHp = Math.max(0, Math.min(this.CONFIG.maxHp, currentHp));
-
-        if (currentHp <= 0) globalStats.questGold = Math.floor(globalStats.questGold * 0.5);
-
         let zettelXp = zettelConcepts.length * 10;
-        let totalXpEarned = globalStats.questXp + zettelXp + (parseInt(profileFm.bonus_xp) || 0) + (parseInt(profileFm.archive_xp) || 0);
-        let currentGold = globalStats.questGold + (parseInt(profileFm.bonus_gold) || 0) + (parseInt(profileFm.archive_gold) || 0) - profileSpent - globalStats.waste;
+        let totalXpEarned = accumulatedQuestXp + zettelXp + (parseInt(profileFm.bonus_xp) || 0) + (parseInt(profileFm.archive_xp) || 0);
+        let currentGold = accumulatedQuestGold + (parseInt(profileFm.bonus_gold) || 0) + (parseInt(profileFm.archive_gold) || 0) - profileSpent - globalStats.waste;
         
         let currentLevel = Math.floor(totalXpEarned / this.CONFIG.xpPerLevel) + 1;
         let xpInCurrentLevel = totalXpEarned % this.CONFIG.xpPerLevel;
         let progressPercent = Math.floor((xpInCurrentLevel / this.CONFIG.xpPerLevel) * 100);
         
-        let title = "🔮 Novice Adept";
-        if (currentLevel >= 10) title = "📜 Knowledge Seeker";
-        if (currentLevel >= 25) title = "📐 Master of Equations";
-        if (currentLevel >= 50) title = "💻 Code Breaker";
-        if (currentLevel >= 100) title = "🌌 Supreme Database Sage";
-        if (currentLevel >= 250) title = "👑 Architect of Reality";
+        let title = "🔮 Адепт-Новичок";
+        if (currentLevel >= 10) title = "📚 Искатель Знаний";
+        if (currentLevel >= 25) title = "📐 Магистр Уравнений";
+        if (currentLevel >= 50) title = "💻 Разрушитель Кода";
+        if (currentLevel >= 100) title = "🌌 Верховный Мудрец БД";
 
         const builtData = {
-            currentGold, currentHp, totalXpEarned, currentLevel, xpInCurrentLevel, progressPercent,
-            title, focusMap, zettelCount: zettelConcepts.length, 
+            currentGold, currentHp: runningHp, totalXpEarned, currentLevel, xpInCurrentLevel, progressPercent,
+            title, focusMap, zettelCount: zettelConcepts.length, lifetimeGold,
             todayStats, monthTagMap, globalTagMap, 
-            
             logsArray: dailyLogs.values || Array.from(dailyLogs),
             archiveCutoff: profileFm.archive_cutoff || "2000-01-01",
-
             timeStats: { 
-                totalMinutes: globalStats.focus, totalRoutineMinutes: globalStats.routine, 
-                totalRestMinutes: globalStats.rest, totalProcrastinateMinutes: globalStats.waste 
+                totalMinutes: monthStats.focus, 
+                totalRoutineMinutes: monthStats.routine, 
+                totalRestMinutes: monthStats.rest, 
+                totalProcrastinateMinutes: monthStats.waste 
             },
             globalTimeStats: { 
                 totalMinutes: globalStats.focus + (parseInt(profileFm.archive_focus_mins) || 0),

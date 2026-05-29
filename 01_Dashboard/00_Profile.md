@@ -301,8 +301,8 @@ inventory:
         let hasTasks = false;
         const ul = debtsDiv.createEl('div', { attr: { style: "display: flex; flex-direction: column; gap: 10px;" }});
 
-		let sortedLogs = ctx.logsArray.sort((a, b) => a.file.name.localeCompare(b.file.name));        
-		 for (let log of sortedLogs) {
+        let sortedLogs = [...ctx.logsArray].sort((a, b) => a.file.name.localeCompare(b.file.name));        
+        for (let log of sortedLogs) {
             let fileDate = log.file.name;
             if (fileDate >= todayStr || fileDate < ctx.archiveCutoff) continue; 
 
@@ -342,7 +342,7 @@ inventory:
 })();
 ```
 # Прогресс структуры хронологии
-```dataviewjs 
+```dataviewjs
 const container = this.container;
 container.empty();
 
@@ -355,36 +355,44 @@ let withInlinks = 0;
 let emptyNotes = 0;
 const inlinkCounts = {};
 
-for (const file of files) {
-    if (file.stat && file.stat.size <= 4) emptyNotes++;
-    
-    const outlinks = resolvedLinks[file.path] || {};
-    if (Object.keys(outlinks).length > 0) {
-        withOutlinks++;
+(async () => {
+    let chunksProcessed = 0;
+    for (const file of files) {
+        chunksProcessed++;
+        if (chunksProcessed % 200 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        if (file.stat && file.stat.size <= 4) emptyNotes++;
+        
+        const outlinks = resolvedLinks[file.path] || {};
+        if (Object.keys(outlinks).length > 0) {
+            withOutlinks++;
+        }
+        for (const dest in outlinks) {
+            inlinkCounts[dest] = (inlinkCounts[dest] || 0) + outlinks[dest];
+        }
     }
-    for (const dest in outlinks) {
-        inlinkCounts[dest] = (inlinkCounts[dest] || 0) + outlinks[dest];
+
+    for (const file of files) {
+        if (inlinkCounts[file.path] > 0) {
+            withInlinks++;
+        }
     }
-}
 
-for (const file of files) {
-    if (inlinkCounts[file.path] > 0) {
-        withInlinks++;
-    }
-}
+    const connectivity = totalNotes > 0 ? ((withOutlinks / totalNotes) * 100).toFixed(1) : "0.0";
 
-const connectivity = totalNotes > 0 ? ((withOutlinks / totalNotes) * 100).toFixed(1) : "0.0";
+    let statsHTML = `<div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; font-size: 0.9em; line-height: 1.6;">
+      <ul style="list-style-type: none; padding-left: 0; margin: 0;">
+        <li>• <b>Всего заметок:</b> ${totalNotes}</li>
+        <li>• <b>Заметки с исходящими ссылками:</b> ${withOutlinks}</li>
+        <li>• <b>Заметки с входящими ссылками:</b> ${withInlinks}</li>
+        <li>• <b>Пустые заметки (нет содержимого):</b> ${emptyNotes}</li>
+        <li>• <b>Процент связанности (имеют хотя бы одну ссылку):</b> <span style="color: var(--text-accent); font-weight: bold;">${connectivity}%</span></li>
+      </ul>
+    </div>`;
 
-let statsHTML = `<div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; font-size: 0.9em; line-height: 1.6;">
-  <ul style="list-style-type: none; padding-left: 0; margin: 0;">
-    <li>• <b>Всего заметок:</b> ${totalNotes}</li>
-    <li>• <b>Заметки с исходящими ссылками:</b> ${withOutlinks}</li>
-    <li>• <b>Заметки с входящими ссылками:</b> ${withInlinks}</li>
-    <li>• <b>Пустые заметки (нет содержимого):</b> ${emptyNotes}</li>
-    <li>• <b>Процент связанности (имеют хотя бы одну ссылку):</b> <span style="color: var(--text-accent); font-weight: bold;">${connectivity}%</span></li>
-  </ul>
-</div>`;
-
-const statsDiv = container.createEl('div');
-statsDiv.innerHTML = statsHTML;
+    const statsDiv = container.createEl('div');
+    statsDiv.innerHTML = statsHTML;
+})();
 ```

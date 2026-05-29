@@ -26,26 +26,32 @@
         const balanceSpan = headerDiv.createEl('div', { cls: `shop-balance ${currentGold >= 0 ? 'balance-positive' : 'balance-negative'}` });
         balanceSpan.innerText = `💰 Баланс: ${currentGold} GP`;
 
-        // Слушатель событий: ждет сигнала от магазина, чтобы мгновенно обновить цифры
         const updateBalanceUI = (e) => {
+            if (!balanceSpan || !document.body.contains(balanceSpan)) return;
             const newGold = e.detail.gold;
             balanceSpan.innerText = `💰 Баланс: ${newGold} GP`;
             balanceSpan.className = `shop-balance ${newGold >= 0 ? 'balance-positive' : 'balance-negative'}`;
         };
 
-        // Защита от дублирования слушателей при перезагрузке страницы
         if (window.rpgWalletListener) {
             window.removeEventListener('rpg-balance-updated', window.rpgWalletListener);
         }
         window.rpgWalletListener = updateBalanceUI;
         window.addEventListener('rpg-balance-updated', window.rpgWalletListener);
 
+        this.onunload = () => {
+            if (window.rpgWalletListener) {
+                window.removeEventListener('rpg-balance-updated', window.rpgWalletListener);
+                window.rpgWalletListener = null;
+            }
+        };
+
     } catch(e) {
         container.createEl('p', {text: "Ошибка загрузки кошелька: " + e.message, attr: {style: "color:red;"}});
     }
 })();
 ```
-# Магазин
+# Магазин 
 ```dataviewjs
 (async () => {
     const container = this.container;
@@ -133,7 +139,6 @@
                         fm.inventory[id] = (parseInt(fm.inventory[id]) || 0) + qty;
                     });
                     
-                    // Вычитаем золото и отправляем сигнал кошельку обновиться
                     currentGold -= totalCost;
                     window.dispatchEvent(new CustomEvent('rpg-balance-updated', { detail: { gold: currentGold } }));
 

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "README.md",
+                "file": "06_Templates/Daily Note Template.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "README"
+              "title": "Daily Note Template"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "README.md",
+                "file": "06_Templates/Daily Note Template.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Обратные ссылки для README"
+              "title": "Обратные ссылки для Daily Note Template"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "README.md",
+                "file": "06_Templates/Daily Note Template.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Исходящие ссылки из README"
+              "title": "Исходящие ссылки из Daily Note Template"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "README.md",
+                "file": "06_Templates/Daily Note Template.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Структура README"
+              "title": "Структура Daily Note Template"
             }
           }
         ]
@@ -187,13 +187,13 @@
   },
   "active": "d57fc72be9eb471c",
   "lastOpenFiles": [
-    "01_Dashboard/01_Hall_of_Fame.md",
-    "README.md",
-    "06_Templates/Daily Note Template.md",
     "01_Dashboard/Homepage.md",
     "01_Dashboard/03_Backpack.md",
     "01_Dashboard/02_Shop.md",
+    "01_Dashboard/01_Hall_of_Fame.md",
     "01_Dashboard/00_Profile.md",
+    "06_Templates/Daily Note Template.md",
+    "README.md",
     "Текстовый документ.txt",
     "01_Dashboard/01_Hall_of_Fame",
     "01_Dashboard 1",
