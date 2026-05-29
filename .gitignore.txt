@@ -1,0 +1,15 @@
+# Игнорируем кэш и рабочее пространство пользователя (чтобы не затирать их при обновлениях)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache/
+.obsidian/graph.json
+
+# Игнорируем дневники пользователя и его заметки Zettelkasten (кроме шаблонов)
+05_Journal/*.md
+04_Zettelkasten/**/*.md
+00_Inbox/*.md
+02_Projects/*.md
+03_Areas/*.md
+
+# ОСТАВЛЯЕМ (не игнорируем) папку 01_Dashboard, 99_System и 06_Templates, 
+# потому что именно их ты будешь обновлять через GitHub.
