@@ -46,10 +46,11 @@ unlocked_badges: []
             "focus": { title: "⏳ Мастерство Фокуса", desc: "Награды за общее время чистой Основной деятельности.", bg: "rgba(255, 255, 255, 0.02)" },
             "quests": { title: "⚔️ Дисциплина Квестов", desc: "Награды за количество успешно закрытых задач.", bg: "rgba(255, 255, 255, 0.02)" },
             "zk": { title: "🧠 Нейронная сеть (Zettelkasten)", desc: "Прогресс создания карточек знаний.", bg: "rgba(255, 255, 255, 0.02)" },
-            "eco": { title: "⚖️ Финансовый Капитал", desc: "Масштаб твоего золотого запаса.", bg: "rgba(255, 255, 255, 0.02)" },
+            "eco": { title: "⚖️ Финансовый Капитал", desc: "Масштаб твоего текущего золотого запаса в кошельке.", bg: "rgba(255, 255, 255, 0.02)" },
             "shame": { title: "💀 Аллея Позора", desc: "Ироничные статусы за слитое время.", bg: "rgba(231, 76, 60, 0.02)" }
         };
 
+        // ИСПРАВЛЕНИЕ: Категория eco теперь завязана на реальный ctx.currentGold вместо ctx.lifetimeGold
         const allAchievements = [
             { id: "f_1", cat: "focus", type: "auto", icon: "🥉", title: "Первая кровь", desc: "Наработать 1 час фокуса", req: 1, current: totalFocusHours, rewardXp: 50, rewardGp: 25 },
             { id: "f_5", cat: "focus", type: "auto", icon: "🥉", title: "Вкатывание", desc: "Наработать 5 часов фокуса", req: 5, current: totalFocusHours, rewardXp: 100, rewardGp: 50 },
@@ -77,11 +78,11 @@ unlocked_badges: []
             { id: "z_1000", cat: "zk", type: "auto", icon: "🧠", title: "Второй Мозг", desc: "Создать 1000 conceptual-заметок", req: 1000, current: totalZk, rewardXp: 6000, rewardGp: 3000 },
             { id: "z_2000", cat: "zk", type: "auto", icon: "🌌", title: "Цифровой Демиург", desc: "Создать 2000 conceptual-заметок", req: 2000, current: totalZk, rewardXp: 10000, rewardGp: 5000 },
             { id: "z_5000", cat: "zk", type: "auto", icon: "🌐", title: "Вселенский Разум", desc: "Создать 5000 conceptual-заметок", req: 5000, current: totalZk, rewardXp: 25000, rewardGp: 10000 },
-            { id: "e_100", cat: "eco", type: "auto", icon: "👛", title: "Первый капитал", desc: "Накопить 100 GP", req: 100, current: ctx.lifetimeGold, rewardXp: 50, rewardGp: 0 },
-            { id: "e_500", cat: "eco", type: "auto", icon: "👛", title: "Копилка", desc: "Накопить 500 GP", req: 500, current: ctx.lifetimeGold, rewardXp: 150, rewardGp: 0 },
-            { id: "e_1k", cat: "eco", type: "auto", icon: "💰", title: "Капиталист", desc: "Накопить 1000 GP", req: 1000, current: ctx.lifetimeGold, rewardXp: 500, rewardGp: 0 },
-            { id: "e_2.5k", cat: "eco", type: "auto", icon: "💰", title: "Зажиточный маг", desc: "Накопить 2500 GP", req: 2500, current: ctx.lifetimeGold, rewardXp: 1000, rewardGp: 0 },
-            { id: "e_5k", cat: "eco", type: "auto", icon: "🏦", title: "Магнат", desc: "Накопить 5000 GP", req: 5000, current: ctx.lifetimeGold, rewardXp: 2000, rewardGp: 0 },
+            { id: "e_100", cat: "eco", type: "auto", icon: "👛", title: "Первый капитал", desc: "Накопить 100 GP", req: 100, current: ctx.currentGold, rewardXp: 50, rewardGp: 0 },
+            { id: "e_500", cat: "eco", type: "auto", icon: "👛", title: "Копилка", desc: "Накопить 500 GP", req: 500, current: ctx.currentGold, rewardXp: 150, rewardGp: 0 },
+            { id: "e_1k", cat: "eco", type: "auto", icon: "💰", title: "Капиталист", desc: "Накопить 1000 GP", req: 1000, current: ctx.currentGold, rewardXp: 500, rewardGp: 0 },
+            { id: "e_2.5k", cat: "eco", type: "auto", icon: "💰", title: "Зажиточный маг", desc: "Накопить 2500 GP", req: 2500, current: ctx.currentGold, rewardXp: 1000, rewardGp: 0 },
+            { id: "e_5k", cat: "eco", type: "auto", icon: "🏦", title: "Магнат", desc: "Накопить 5000 GP", req: 5000, current: ctx.currentGold, rewardXp: 2000, rewardGp: 0 },
             { id: "s_1", cat: "shame", type: "irony", icon: "🤡", title: "Запахло ленью", desc: "Слить первый час на прокрастинацию", req: 60, current: totalProcrastinate, rewardXp: 0, rewardGp: 0 },
             { id: "s_10", cat: "shame", type: "irony", icon: "🤡", title: "Спонсор TikTok", desc: "Накопить 10 часов прокрастинации", req: 600, current: totalProcrastinate, rewardXp: 0, rewardGp: 0 },
             { id: "s_50", cat: "shame", type: "irony", icon: "🛋️", title: "Рыцарь Дивана", desc: "Накопить 50 часов прокрастинации", req: 3000, current: totalProcrastinate, rewardXp: 0, rewardGp: 0 },
@@ -180,14 +181,6 @@ unlocked_badges: []
                     btn.innerText = ach.type === 'irony' ? "ПОЗОРИЩЕ" : "ЗАБРАТЬ";
                     
                     btn.addEventListener('click', async () => {
-                        if (window.isRPGTransactionActive) return;
-                        
-                        if (!hofFile || !profileFile) {
-                            new Notice("❌ Ошибка: файлы достижений или профиля не найдены.");
-                            return;
-                        }
-
-                        window.isRPGTransactionActive = true;
                         btn.disabled = true; 
                         btn.innerText = "⏳ ...";
                         
@@ -196,8 +189,6 @@ unlocked_badges: []
                                 if (!fMatter.unlocked_badges) fMatter.unlocked_badges = [];
                                 if (!fMatter.unlocked_badges.includes(ach.id)) fMatter.unlocked_badges.push(ach.id);
                             });
-                            
-                            await new Promise(resolve => setTimeout(resolve, 100));
                             
                             if ((ach.rewardXp > 0 || ach.rewardGp > 0) && profileFile) {
                                 await app.fileManager.processFrontMatter(profileFile, (pMatter) => {
@@ -208,20 +199,13 @@ unlocked_badges: []
 
                             engine.invalidateCache(); 
                             new Notice("Награда получена: " + ach.title);
-                            
-                            setTimeout(() => { 
-                                if (btn && document.body.contains(btn)) {
-                                    btn.innerText = "🏆 ОТКРЫТО"; 
-                                    btn.style.cssText = "width: 100%; padding: 6px 10px; border-radius: 5px; font-weight: bold; font-size: 0.8em; background: transparent; color: #f1c40f; border: 1px solid #f1c40f; cursor: default;"; 
-                                }
-                            }, 500);
                         } catch (err) {
                             new Notice("Ошибка при сохранении: " + err.message);
                             btn.disabled = false;
-                            btn.innerText = "ОШИБКА";
                         } finally {
-                            // Гарантированное снятие блокировки
-                            window.isRPGTransactionActive = false;
+                            setTimeout(() => {
+                                app.commands.executeCommandById("dataview:dataview-refresh-views");
+                            }, 100);
                         }
                     });
                 } else {

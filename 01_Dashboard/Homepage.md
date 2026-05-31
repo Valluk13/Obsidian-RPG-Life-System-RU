@@ -1,6 +1,6 @@
 ---
+banner: "[https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&w=1400&q=80](https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&w=1400&q=80)"
 banner_y: 0.5
-banner: https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&w=1400&q=80
 ---
 ## 🏰 Цитадель Управления
 ```dataviewjs

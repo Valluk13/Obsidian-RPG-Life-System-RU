@@ -22,7 +22,7 @@
         `;
 
         const headerDiv = container.createEl('div', { cls: 'shop-header' });
-        headerDiv.createEl('h3', { cls: 'shop-title', text: '🛒 Торговая Лавка' });
+        headerDiv.createEl('h3', { cls: 'shop-title', text: '🛒 Торго Лавка' });
         const balanceSpan = headerDiv.createEl('div', { cls: `shop-balance ${currentGold >= 0 ? 'balance-positive' : 'balance-negative'}` });
         balanceSpan.innerText = `💰 Баланс: ${currentGold} GP`;
 
@@ -33,9 +33,7 @@
             balanceSpan.className = `shop-balance ${newGold >= 0 ? 'balance-positive' : 'balance-negative'}`;
         };
 
-        if (window.rpgWalletListener) {
-            window.removeEventListener('rpg-balance-updated', window.rpgWalletListener);
-        }
+        if (window.rpgWalletListener) window.removeEventListener('rpg-balance-updated', window.rpgWalletListener);
         window.rpgWalletListener = updateBalanceUI;
         window.addEventListener('rpg-balance-updated', window.rpgWalletListener);
 
@@ -45,7 +43,6 @@
                 window.rpgWalletListener = null;
             }
         };
-
     } catch(e) {
         container.createEl('p', {text: "Ошибка загрузки кошелька: " + e.message, attr: {style: "color:red;"}});
     }
@@ -116,42 +113,43 @@
             updateBtnState(); 
 
             buyBtn.addEventListener('click', async () => {
-                if (window.isRPGTransactionActive) return;
-                window.isRPGTransactionActive = true;
                 buyBtn.disabled = true;
-                
                 let qty = parseInt(qtyInput.value) || 1;
                 let totalCost = item.cost * qty;
                 
                 if (currentGold - totalCost < creditLimit) {
                     new Notice(`❌ Превышен кредитный лимит (${creditLimit} GP)!`);
                     buyBtn.disabled = false;
-                    window.isRPGTransactionActive = false;
                     return;
                 }
-                
                 buyBtn.innerText = "⏳...";
                 
                 try {
+                    // === ПРЯМАЯ И БЕЗОПАСНАЯ ТРАНЗАКЦИЯ ===
                     await app.fileManager.processFrontMatter(tFile, (fm) => {
                         fm.gold_spent = (parseInt(fm.gold_spent) || 0) + totalCost;
                         if (!fm.inventory) fm.inventory = {};
                         fm.inventory[id] = (parseInt(fm.inventory[id]) || 0) + qty;
                     });
                     
+                    // Обновляем локальный стейт магазина
                     currentGold -= totalCost;
+                    
+                    // Сигнализируем верхнему блоку (Балансу) обновиться
                     window.dispatchEvent(new CustomEvent('rpg-balance-updated', { detail: { gold: currentGold } }));
-
+                    
+                    // Сбрасываем кэш Ядра, чтобы профиль и другие страницы увидели трату
+                    engine.invalidateCache();
+                    
                     new Notice('✅ Приобретено: ' + item.name + ' (x' + qty + ')');
-                } catch (e) {
-                    new Notice('Ошибка транзакции: ' + e.message);
-                } finally {
-                    setTimeout(() => {
-                        if (buyBtn && document.body.contains(buyBtn)) {
-                            updateBtnState();
-                        }
-                        window.isRPGTransactionActive = false;
-                    }, 1000);
+                    
+                    // Возвращаем кнопку в нормальное состояние
+                    setTimeout(() => { if (buyBtn && document.body.contains(buyBtn)) updateBtnState(); }, 200);
+
+                } catch (err) {
+                    new Notice("❌ Ошибка при покупке: " + err.message);
+                    buyBtn.disabled = false;
+                    updateBtnState();
                 }
             });
         }
@@ -160,3 +158,4 @@
     }
 })();
 ```
+

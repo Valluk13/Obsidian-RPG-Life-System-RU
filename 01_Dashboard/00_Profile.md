@@ -1,12 +1,15 @@
 ---
-# Экономика и бонусы (пишутся Лавкой и Залом Славы)
-gold_spent: 0
-bonus_xp: 0
+archive_cutoff: 2026-05-01
+archive_xp: 0
+archive_gold: 0
+archive_focus_mins: 0
+archive_routine_mins: 0
+archive_rest_mins: 0
+archive_procrastination_spent: 0
+archive_quests_count: 0
 bonus_gold: 0
-
-# Инвентарь
-total_potions_consumed: 0
-potions_history: {}
+bonus_xp: 0
+gold_spent: 0
 inventory:
   potion: 0
   walk: 0
@@ -15,6 +18,7 @@ inventory:
   games: 0
   social: 0
   dayoff: 0
+potions_history: {}
 ---
 # Личный Кабинет
 ```dataviewjs
@@ -234,45 +238,251 @@ inventory:
     const container = this.container;
     container.empty();
 
-    if (!window.customJS || !customJS.RPG_Engine) return;
+    if (!window.customJS || !customJS.RPG_Engine) {
+        container.createEl('div', { text: "⚠️ Движок загружается...", attr: { style: "color: #e74c3c;" } });
+        return;
+    }
 
     try {
         const engine = customJS.RPG_Engine;
         const profilePage = dv.page("01_Dashboard/00_Profile.md");
         const ctx = await engine.getSharedContext(dv, profilePage);
 
+        // --- 1. СБОР ДАННЫХ ---
+        const allJournals = dv.pages('"05_Journal"');
+        const fMap = {};
+        for (let p of allJournals) {
+            fMap[p.file.name] = parseInt(p.focus_mins) || 0;
+        }
+
+        const today = window.moment();
+        const todayStr = today.format("YYYY-MM-DD");
+
+        // --- 2. СТРИКИ ---
+        let currentStreak = 0;
+        let maxStreak = 0;
+        let tempStreak = 0;
+
+        const sortedDates = Object.keys(fMap).sort();
+        let prevDate = null;
+
+        for (let date of sortedDates) {
+            if (fMap[date] > 0) {
+                if (!prevDate) tempStreak = 1;
+                else {
+                    const diff = window.moment(date).diff(window.moment(prevDate), 'days');
+                    if (diff === 1) tempStreak++;
+                    else tempStreak = 1;
+                }
+                if (tempStreak > maxStreak) maxStreak = tempStreak;
+                prevDate = date;
+            } else {
+                tempStreak = 0;
+            }
+        }
+
+        let streakCheckDate = window.moment();
+        if (!fMap[todayStr] || fMap[todayStr] === 0) {
+            streakCheckDate.subtract(1, 'days');
+        }
+        while (true) {
+            let checkStr = streakCheckDate.format("YYYY-MM-DD");
+            if (fMap[checkStr] && fMap[checkStr] > 0) {
+                currentStreak++;
+                streakCheckDate.subtract(1, 'days');
+            } else break;
+        }
+
+        const totalHours = Math.floor((ctx.globalTimeStats?.totalMinutes || 0) / 60);
+
+        // --- 3. СТИЛИ ИНТЕРФЕЙСА ---
         const styleEl = container.createEl('style');
         styleEl.innerHTML = `
-          .activity-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 10px; padding: 10px; }
-          .activity-box { aspect-ratio: 1; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 0.8em; color: rgba(255,255,255,0.5); cursor: default; transition: transform 0.2s; font-family: monospace; position: relative; }
-          .activity-box:hover { transform: scale(1.15); z-index: 2; box-shadow: 0 0 8px rgba(0,0,0,0.5); }
-          .lvl-0 { background: rgba(255,255,255,0.02); }
-          .lvl-1 { background: rgba(46, 204, 113, 0.2); border-color: rgba(46, 204, 113, 0.3); color: white; }
-          .lvl-2 { background: rgba(46, 204, 113, 0.5); border-color: rgba(46, 204, 113, 0.6); color: white; }
-          .lvl-3 { background: rgba(46, 204, 113, 0.8); border-color: rgba(46, 204, 113, 0.9); color: white; font-weight: bold; }
-          .lvl-4 { background: #27ae60; border-color: #2ecc71; color: white; font-weight: bold; box-shadow: 0 0 5px #27ae60; }
+            .hm-wrapper { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 20px; border-radius: 12px; margin-top: 15px; }
+            .hm-hud { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+            .hm-stat-card { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 12px 18px; border-radius: 8px; flex: 1; min-width: 120px; }
+            .hm-stat-title { font-size: 0.75em; color: var(--text-muted); text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px; }
+            .hm-stat-val { font-size: 1.6em; font-weight: 900; font-family: monospace; }
+            
+            .hm-section-title { font-size: 1.1em; color: var(--text-normal); font-weight: bold; margin-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 5px; display: flex; align-items: center; justify-content: space-between; }
+            
+            /* Стили для Календаря Месяца (Полноразмерный) */
+            .month-panel { background: rgba(0,0,0,0.15); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.04); margin-bottom: 20px; }
+            .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+            .month-day-lbl { text-align: center; font-size: 0.7em; color: var(--text-muted); font-weight: bold; padding-bottom: 4px; text-transform: uppercase; }
+            .month-cell { aspect-ratio: 1.5; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; transition: 0.2s; font-size: 1em; font-weight: bold; color: rgba(255,255,255,0.8); }
+            .month-cell:hover:not(.mc-empty):not(.hm-future) { transform: translateY(-2px) scale(1.05); box-shadow: 0 4px 12px rgba(0, 255, 102, 0.3); color: #fff; z-index: 5; border: 1px solid #fff !important; }
+            .mc-empty { background: transparent; border: none; pointer-events: none; }
+            
+            /* Стили для Годового Скролла */
+            .year-panel { padding-top: 10px; }
+            .hm-scroll-box { overflow-x: auto; padding-bottom: 10px; width: 100%; display: flex; flex-direction: column; gap: 5px; transform: translateZ(0); }
+            .hm-scroll-box::-webkit-scrollbar { height: 6px; }
+            .hm-scroll-box::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+            .hm-months-row { display: flex; position: relative; height: 16px; margin-left: 25px; margin-bottom: 2px; }
+            .hm-month-label { position: absolute; font-size: 0.7em; color: var(--text-muted); font-weight: bold; }
+            .hm-grid-container { display: flex; gap: 6px; }
+            .hm-days-column { display: grid; gap: 4px; padding-right: 6px; text-align: right; user-select: none; }
+            .hm-day-label { font-size: 0.65em; color: var(--text-muted); line-height: 1; display: flex; align-items: center; justify-content: flex-end; }
+            .hm-cells-grid { display: grid; grid-auto-flow: column; gap: 4px; }
+            .hm-cell { width: 13px; height: 13px; border-radius: 3px; cursor: pointer; transition: transform 0.15s; }
+            .hm-cell:hover:not(.hm-future):not(.mc-empty) { transform: scale(1.3); z-index: 10; border: 1px solid #fff; box-shadow: 0 0 10px rgba(0,255,102,0.5); }
+            
+            /* Общая палитра "Изумрудная Бездна" */
+            .hm-future { background: rgba(255,255,255,0.01); border: 1px dashed rgba(255,255,255,0.03); color: rgba(255,255,255,0.1); pointer-events: none; }
+            .hm-lvl-0 { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
+            .hm-lvl-1 { background: #004d22; border: 1px solid #00662d; color: #fff; }
+            .hm-lvl-2 { background: #008838; border: 1px solid #00a343; color: #fff; }
+            .hm-lvl-3 { background: #00c24e; border: 1px solid #00e65d; color: #fff; }
+            .hm-lvl-4 { background: #00ff66; border: 1px solid #ffffff; box-shadow: 0 0 8px rgba(0, 255, 102, 0.5); color: #000; }
+            .hm-today { border: 1px solid var(--text-accent) !important; color: var(--text-accent); }
         `;
 
-        const titleDiv = container.createEl('div', { text: "🗺️ Карта игровой активности (Фокус за 35 дней)" });
-        titleDiv.style.cssText = "font-size: 0.85em; color: var(--text-muted); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 5px;";
+        // ОПТИМИЗАЦИЯ 1: Теневой DOM (Detached Element). 
+        // Мы не добавляем wrapper на страницу сразу, чтобы избежать 400 Reflow-перерисовок.
+        const wrapper = document.createElement('div');
+        wrapper.className = 'hm-wrapper';
 
-        const grid = container.createEl('div', { cls: 'activity-grid' });
+        // --- 4. РЕНДЕР HUD ---
+        const hudPanel = wrapper.createEl('div', { cls: 'hm-hud' });
+        const statCard = (title, val, color) => {
+            const card = hudPanel.createEl('div', { cls: 'hm-stat-card', attr: { style: `border-left: 4px solid ${color};` } });
+            card.createEl('div', { cls: 'hm-stat-title', text: title });
+            card.createEl('div', { cls: 'hm-stat-val', text: val, attr: { style: `color: ${color};` } });
+        };
 
-        for (let dateStr in ctx.focusMap) {
-            let mins = ctx.focusMap[dateStr] || 0;
-            let dayNum = window.moment(dateStr).format("D");
-            
-            let lvl = 0;
-            if (mins > 0) lvl = 1;
-            if (mins >= 30) lvl = 2;
-            if (mins >= 60) lvl = 3;
-            if (mins >= 120) lvl = 4;
-            
-            let box = grid.createEl('div', { cls: "activity-box lvl-" + lvl, text: dayNum });
-            box.title = dateStr + ": Фокус " + mins + " мин.";
+        statCard("Всего в фокусе", `${totalHours} ч.`, "#3498db");
+        statCard("Текущий стрик", `${currentStreak} дн.`, "#f39c12");
+        statCard("Рекордный стрик", `${maxStreak} дн.`, "#9b59b6");
+
+        // --- ФУНКЦИЯ ОПРЕДЕЛЕНИЯ ЦВЕТА ---
+        const getLvlClass = (mins, isFuture) => {
+            if (isFuture) return 'hm-future';
+            if (mins === 0) return 'hm-lvl-0';
+            if (mins <= 120) return 'hm-lvl-1';       
+            if (mins <= 240) return 'hm-lvl-2';  
+            if (mins <= 420) return 'hm-lvl-3';  
+            return 'hm-lvl-4';                   
+        };
+
+        const attachTooltipAndClick = (el, dateStr, displayDate, mins, isFuture) => {
+            if (!isFuture) {
+                let hrs = Math.floor(mins / 60);
+                let m = mins % 60;
+                let timeText = hrs > 0 ? `${hrs}ч ${m}м` : (mins > 0 ? `${m} мин` : 'Отдых / Нет данных');
+                el.title = `${displayDate} | ${timeText}`;
+
+                el.addEventListener('click', () => {
+                    const path = `05_Journal/${dateStr}.md`;
+                    const file = app.vault.getAbstractFileByPath(path);
+                    if (file) app.workspace.getLeaf(false).openFile(file);
+                    else new Notice(`Дневник за ${displayDate} еще не создан.`);
+                });
+            }
+        };
+
+        // --- 5. РЕНДЕР МЕСЯЦА (Широкая сетка) ---
+        const monthPanel = wrapper.createEl('div', { cls: 'month-panel' });
+        monthPanel.createEl('div', { cls: 'hm-section-title', text: `📅 Месяц (${today.format("MMMM YYYY")})` });
+        
+        const mGrid = monthPanel.createEl('div', { cls: 'month-grid' });
+        ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].forEach(d => mGrid.createEl('div', { cls: 'month-day-lbl', text: d }));
+
+        const startOfMonth = window.moment().startOf('month');
+        const daysInMonth = startOfMonth.daysInMonth();
+        const startWeekday = startOfMonth.isoWeekday(); // 1-7
+
+        for(let i = 1; i < startWeekday; i++) {
+            mGrid.createEl('div', { cls: 'month-cell mc-empty' });
         }
-    } catch(e) {
-        console.error(e);
+
+        // ОПТИМИЗАЦИЯ 2: Мутируем одну дату, вместо создания новых
+        let curMonthDay = window.moment(startOfMonth);
+        for(let i = 0; i < daysInMonth; i++) {
+            const dateStr = curMonthDay.format("YYYY-MM-DD");
+            const mins = fMap[dateStr] || 0;
+            const isFuture = curMonthDay.isAfter(today, 'day');
+            
+            let lvlClass = getLvlClass(mins, isFuture);
+            let extraClass = curMonthDay.isSame(today, 'day') ? ' hm-today' : '';
+            
+            const cell = mGrid.createEl('div', { cls: `month-cell ${lvlClass}${extraClass}`, text: (i + 1).toString() });
+            attachTooltipAndClick(cell, dateStr, curMonthDay.format("DD.MM.YYYY"), mins, isFuture);
+            
+            curMonthDay.add(1, 'days');
+        }
+
+        // --- 6. РЕНДЕР ГОДА (Горизонтальный скролл) ---
+        const yearPanel = wrapper.createEl('div', { cls: 'year-panel' });
+        yearPanel.createEl('div', { cls: 'hm-section-title', text: `🔥 Годовая Летопись (${today.format("YYYY")})` });
+        
+        const scrollBox = yearPanel.createEl('div', { cls: 'hm-scroll-box' });
+        
+        const startOfYear = window.moment().startOf('year');
+        const endOfYear = window.moment().endOf('year');
+        const totalDaysYear = endOfYear.diff(startOfYear, 'days') + 1;
+        const yearStartWeekday = startOfYear.isoWeekday();
+
+        const monthsRow = scrollBox.createEl('div', { cls: 'hm-months-row' });
+        let currentMonth = -1;
+        
+        let curLabelDay = window.moment(startOfYear);
+        for (let i = 0; i < totalDaysYear; i++) {
+            if (curLabelDay.month() !== currentMonth) {
+                currentMonth = curLabelDay.month();
+                const colIndex = Math.floor((i + yearStartWeekday - 1) / 7);
+                const leftPos = colIndex * 17; // 13px cell + 4px gap
+                monthsRow.createEl('span', { cls: 'hm-month-label', text: curLabelDay.format("MMM"), attr: { style: `left: ${leftPos}px;` } });
+            }
+            curLabelDay.add(1, 'days');
+        }
+
+        const gridContainer = scrollBox.createEl('div', { cls: 'hm-grid-container' });
+        
+        const daysCol = gridContainer.createEl('div', { cls: 'hm-days-column', attr: { style: `grid-template-rows: repeat(7, 13px);` } });
+        ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].forEach(d => {
+            daysCol.createEl('div', { cls: 'hm-day-label', text: d, attr: { style: `height: 13px;` } });
+        });
+
+        const yGrid = gridContainer.createEl('div', { cls: 'hm-cells-grid', attr: { style: `grid-template-rows: repeat(7, 13px);` } });
+        
+        for (let i = 1; i < yearStartWeekday; i++) {
+            yGrid.createEl('div', { cls: 'hm-cell mc-empty' });
+        }
+
+        let todayIndex = -1;
+        let curYearDay = window.moment(startOfYear);
+
+        for (let i = 0; i < totalDaysYear; i++) {
+            let dateStr = curYearDay.format("YYYY-MM-DD");
+            let mins = fMap[dateStr] || 0;
+            let isFuture = curYearDay.isAfter(today, 'day');
+            
+            if (curYearDay.isSame(today, 'day')) todayIndex = i;
+
+            let lvlClass = getLvlClass(mins, isFuture);
+            let extraClass = curYearDay.isSame(today, 'day') ? ' hm-today' : '';
+            
+            let cell = yGrid.createEl('div', { cls: `hm-cell ${lvlClass}${extraClass}` });
+            attachTooltipAndClick(cell, dateStr, curYearDay.format("DD.MM.YYYY"), mins, isFuture);
+            
+            curYearDay.add(1, 'days');
+        }
+
+        // ВАЖНО: Только сейчас, когда все 400+ DOM-элементов созданы в черновике,
+        // мы ОДНИМ действием вставляем их на страницу. 
+        container.appendChild(wrapper);
+
+        // Авто-скролл к сегодняшнему дню
+        setTimeout(() => {
+            if (todayIndex !== -1) {
+                const colIndex = Math.floor((todayIndex + yearStartWeekday - 1) / 7);
+                scrollBox.scrollLeft = Math.max(0, (colIndex * 17) - 200);
+            }
+        }, 150);
+
+    } catch (e) {
+        container.createEl('div', { text: "⚠️ Ошибка рендера матрицы: " + e.message, attr: { style: "color: #e74c3c;" } });
     }
 })();
 ```

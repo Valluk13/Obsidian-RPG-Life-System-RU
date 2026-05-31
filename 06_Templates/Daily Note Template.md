@@ -88,15 +88,27 @@ let lastLogDate = null;
 let logMatches = [...fileContent.matchAll(/- \d{2}:\d{2}\s*-\s*(\d{2}):(\d{2})\s*\|/g)];
 
 if (logMatches.length > 0) {
-    let lm = logMatches[logMatches.length - 1]; 
-    let now = new Date();
-    let logTimeToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(lm[1]), parseInt(lm[2]), 0, 0);
-    if (logTimeToday > now) {
-        logTimeToday.setDate(logTimeToday.getDate() - 1);
+    let maxMinutes = -1;
+    let latestLogMatch = null;
+    
+    for (let match of logMatches) {
+        let mins = parseInt(match[1]) * 60 + parseInt(match[2]);
+        if (mins > maxMinutes) {
+            maxMinutes = mins;
+            latestLogMatch = match;
+        }
     }
-    lastLogDate = logTimeToday;
-    let pad = x => x.toString().padStart(2, '0');
-    lastLogTime = pad(lastLogDate.getHours()) + ":" + pad(lastLogDate.getMinutes());
+    
+    if (latestLogMatch) {
+        let now = new Date();
+        let logTimeToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(latestLogMatch[1]), parseInt(latestLogMatch[2]), 0, 0);
+        if (logTimeToday > now) {
+            logTimeToday.setDate(logTimeToday.getDate() - 1);
+        }
+        lastLogDate = logTimeToday;
+        let pad = x => x.toString().padStart(2, '0');
+        lastLogTime = pad(lastLogDate.getHours()) + ":" + pad(lastLogDate.getMinutes());
+    }
 }
 
 let chainCheck;
@@ -177,6 +189,23 @@ if (tState) {
                 f.timer_tags = tagInput.value;
             });
         });
+
+        let cancelBtn = ctrls.createEl('button', {text: '❌ Отменить', cls: 'act-btn bg-s', attr: {style: 'background: #c0392b; margin-left: 10px;'}});
+        cancelBtn.addEventListener('click', async () => {
+            if (localTimerId) clearInterval(localTimerId);
+            
+            const allBtns = card.querySelectorAll('.act-btn');
+            allBtns.forEach(b => b.disabled = true);
+            cancelBtn.innerText = "⏳...";
+            
+            await app.fileManager.processFrontMatter(tFile, (f) => {
+                f.timer_state = null;
+                f.timer_start = null;
+                f.timer_elapsed = 0;
+                f.timer_tags = null;
+            });
+            new Notice("🚫 Таймер отменен");
+        });
     } else {
         let resBtn = ctrls.createEl('button', {text: '▶️ Продолжить', cls: 'act-btn bg-res'});
         resBtn.addEventListener('click', async () => {
@@ -191,7 +220,10 @@ if (tState) {
     let stopBtn = card.createEl('button', {text: '⏹ Завершить', cls: 'act-btn bg-s', attr: {style: 'width:100%; margin-top:10px;'}});
     stopBtn.addEventListener('click', async () => {
         if (localTimerId) clearInterval(localTimerId);
-        stopBtn.disabled = true; stopBtn.innerText = 'Запись...';
+        
+        const allBtns = card.querySelectorAll('.act-btn');
+        allBtns.forEach(b => b.disabled = true);
+        stopBtn.innerText = 'Запись...';
         
         let totalMs = tElapsed + (tStart ? Date.now() - tStart : 0);
         let mins = Math.max(1, Math.round(totalMs / 60000));
@@ -241,17 +273,36 @@ if (tState) {
         if (tStr && !tStr.startsWith(' ')) tStr = " " + tStr;
         let logLine = "- " + sStr + " - " + eStr + " | " + tState + " | " + mins + " мин" + tStr;
         
-        // ХАК: Разбиваем строку заголовка, чтобы скрипт не сломал сам себя
-        const h1 = "## ⏳ ";
-        const h2 = "Журнал Активности";
-        const targetHeading = h1 + h2;
+        const targetHeading = "## ⏳ Журнал Активности";
         
+        // УМНАЯ ВСТАВКА (Хронологическая сортировка по убыванию времени старта)
         await app.vault.process(tFile, (content) => {
-            if (content.includes(targetHeading)) {
-                let lastIdx = content.lastIndexOf(targetHeading);
-                let before = content.substring(0, lastIdx);
-                let after = content.substring(lastIdx + targetHeading.length);
-                return before + targetHeading + "\n" + logLine + after;
+            const lines = content.split('\n');
+            const headerIdx = lines.findIndex(line => line.trim() === targetHeading);
+            
+            if (headerIdx !== -1) {
+                let newLogMins = parseInt(sStr.split(':')[0]) * 60 + parseInt(sStr.split(':')[1]);
+                let insertIdx = headerIdx + 1;
+                
+                for (let i = headerIdx + 1; i < lines.length; i++) {
+                    let line = lines[i];
+                    if (line.trim() === "") continue; 
+                    let match = line.match(/^- (\d{2}):(\d{2})/);
+                    if (match) {
+                        let lineMins = parseInt(match[1]) * 60 + parseInt(match[2]);
+                        if (newLogMins >= lineMins) {
+                            insertIdx = i;
+                            break;
+                        }
+                    } else {
+                        insertIdx = i;
+                        break;
+                    }
+                    insertIdx = i + 1;
+                }
+                
+                lines.splice(insertIdx, 0, logLine);
+                return lines.join('\n');
             } else {
                 return content.trimEnd() + `\n\n${targetHeading}\n${logLine}\n`;
             }
@@ -271,8 +322,8 @@ const stateSel = manualForm.createEl('select', {cls: 'inp', attr: {style: 'width
 states.forEach(s => stateSel.createEl('option', {value: s.id, text: s.id}));
 stateSel.createEl('option', {value: 'log', text: '📝 Просто заметка'});
 
-const timeStart = manualForm.createEl('input', {type: 'text', placeholder: '12:00', maxlength: '5', cls: 'inp', attr: {style: 'width: 65px; padding: 4px 8px; font-size: 0.9em; height: 36px; text-align: center;'}});
-const timeEnd = manualForm.createEl('input', {type: 'text', placeholder: '13:30', maxlength: '5', cls: 'inp', attr: {style: 'width: 65px; padding: 4px 8px; font-size: 0.9em; height: 36px; text-align: center;'}});
+const timeStart = manualForm.createEl('input', {type: 'time', cls: 'inp', attr: {style: 'width: auto; padding: 4px 8px; font-size: 0.9em; height: 36px; text-align: center; font-family: monospace;'}});
+const timeEnd = manualForm.createEl('input', {type: 'time', cls: 'inp', attr: {style: 'width: auto; padding: 4px 8px; font-size: 0.9em; height: 36px; text-align: center; font-family: monospace;'}});
 const descInp = manualForm.createEl('input', {type: 'text', placeholder: 'Текст / #тег', cls: 'inp', attr: {style: 'flex-grow: 2; min-width: 120px; padding: 6px; font-size: 0.9em;'}});
 const addBtn = manualForm.createEl('button', {text: '➕ Добавить', cls: 'act-btn bg-res', attr: {style: 'padding: 6px 12px; font-size: 0.9em; flex-grow: 1;'}});
 
@@ -289,42 +340,24 @@ stateSel.addEventListener('change', () => {
     }
 });
 
-const parseTimeInput = (val) => {
-    let clean = val.replace(/[^\d:]/g, '');
-    if (!clean) return null;
-    if (!clean.includes(':')) {
-        if (clean.length === 3 || clean.length === 4) {
-            clean = clean.slice(0, -2) + ':' + clean.slice(-2);
-        } else {
-            clean = clean + ':00';
-        }
-    }
-    let parts = clean.split(':');
-    let h = parseInt(parts[0]) || 0;
-    let m = parseInt(parts[1]) || 0;
-    if (h > 23 || m > 59) return null;
-    return { h, m, str: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}` };
-};
-
 addBtn.addEventListener('click', async () => {
     const selState = stateSel.value;
     const desc = descInp.value.trim();
 
-    const sParsed = parseTimeInput(timeStart.value);
-    const eParsed = parseTimeInput(timeEnd.value);
-
-    if (!sParsed || (selState !== 'log' && !eParsed)) {
-        new Notice("⚠️ Введите время корректно (например, 15:30 или 1530)!");
+    if (!timeStart.value || (selState !== 'log' && !timeEnd.value)) {
+        new Notice("⚠️ Заполните поля времени!");
         return;
     }
 
-    let sTimeStr = sParsed.str;
-    let eTimeStr = eParsed ? eParsed.str : "";
+    let sTimeStr = timeStart.value;
+    let eTimeStr = selState === 'log' ? "" : timeEnd.value;
     let mins = 0;
 
     if (selState !== 'log') {
-        let startMin = sParsed.h * 60 + sParsed.m;
-        let endMin = eParsed.h * 60 + eParsed.m;
+        let sParts = sTimeStr.split(':');
+        let eParts = eTimeStr.split(':');
+        let startMin = parseInt(sParts[0]) * 60 + parseInt(sParts[1]);
+        let endMin = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
         if (endMin < startMin) endMin += 24 * 60; 
         mins = endMin - startMin;
 
@@ -375,17 +408,36 @@ addBtn.addEventListener('click', async () => {
         }
     }
 
-    // ХАК: Разбиваем строку заголовка, чтобы скрипт не сломал сам себя
-    const h1 = "## ⏳ ";
-    const h2 = "Журнал Активности";
-    const targetHeading = h1 + h2;
+    const targetHeading = "## ⏳ Журнал Активности";
 
+    // УМНАЯ ВСТАВКА ДЛЯ РУЧНОГО ЛОГА
     await app.vault.process(tFile, (content) => {
-        if (content.includes(targetHeading)) {
-            let lastIdx = content.lastIndexOf(targetHeading);
-            let before = content.substring(0, lastIdx);
-            let after = content.substring(lastIdx + targetHeading.length);
-            return before + targetHeading + "\n" + logLine + after;
+        const lines = content.split('\n');
+        const headerIdx = lines.findIndex(line => line.trim() === targetHeading);
+        
+        if (headerIdx !== -1) {
+            let newLogMins = parseInt(sTimeStr.split(':')[0]) * 60 + parseInt(sTimeStr.split(':')[1]);
+            let insertIdx = headerIdx + 1;
+            
+            for (let i = headerIdx + 1; i < lines.length; i++) {
+                let line = lines[i];
+                if (line.trim() === "") continue; 
+                let match = line.match(/^- (\d{2}):(\d{2})/);
+                if (match) {
+                    let lineMins = parseInt(match[1]) * 60 + parseInt(match[2]);
+                    if (newLogMins >= lineMins) {
+                        insertIdx = i;
+                        break;
+                    }
+                } else {
+                    insertIdx = i;
+                    break;
+                }
+                insertIdx = i + 1;
+            }
+            
+            lines.splice(insertIdx, 0, logLine);
+            return lines.join('\n');
         } else {
             return content.trimEnd() + `\n\n${targetHeading}\n${logLine}\n`;
         }
@@ -399,6 +451,12 @@ addBtn.addEventListener('click', async () => {
     addBtn.disabled = false;
 });
 ```
+### Шаблоны для сложности задач
+[difficulty:: 🟢 Легкий] 
+[difficulty:: 🟡 Средний] 
+[difficulty:: 🔴 Сложный]
+### Шаблон лога
+`- ЧЧ:ММ - ЧЧ:ММ | [ЭМОДЗИ И КАТЕГОРИЯ] | [КОЛИЧЕСТВО] мин [ОПЦИОНАЛЬНО #ТЕГИ]`
 ## 📜 Свиток Квестов 
 - [ ] 
 ## ⏳ Журнал Активности
