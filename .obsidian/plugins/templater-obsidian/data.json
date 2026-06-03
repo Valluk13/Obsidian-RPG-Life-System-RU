@@ -15,8 +15,12 @@
   "enable_folder_templates": true,
   "folder_templates": [
     {
-      "folder": "",
-      "template": ""
+      "folder": "05_Journal",
+      "template": "06_Templates/Daily Note Template.md"
+    },
+    {
+      "folder": "02_Projects",
+      "template": "06_Templates/Project Template.md"
     }
   ],
   "enable_file_templates": false,

@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "7b6e7ba77b0491e3",
+        "id": "704cc89b0b646ffd",
         "type": "tabs",
         "children": [
           {
-            "id": "d57fc72be9eb471c",
+            "id": "5c07f3102abc6843",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -185,19 +185,23 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "20f80403d246950c",
+  "active": "5c07f3102abc6843",
   "lastOpenFiles": [
-    "LICENSE",
-    "06_Templates/Project Template.md",
-    "06_Templates/Daily Note Template.md",
-    "01_Dashboard/Homepage.md",
-    "01_Dashboard/03_Backpack.md",
     "01_Dashboard/02_Shop.md",
     "01_Dashboard/01_Hall_of_Fame.md",
     "01_Dashboard/00_Profile.md",
-    "99_System/Scripts/RPG_Engine.js",
-    "05_Journal/2026-05-30.md",
+    "01_Dashboard/Homepage.md",
+    "05_Journal/2026-06-03.md",
+    "06_Templates/Daily Note Template.md",
+    "01_Dashboard/04_Settings.md",
+    "01_Dashboard/03_Backpack.md",
+    "99_System/rpg_config.json",
     "README.md",
+    "06_Templates/Project Template.md",
+    "99_System/Scripts/RPG_Engine.js",
+    "05_Journal/2026-06-01.md",
+    "LICENSE",
+    "05_Journal/2026-05-30.md",
     "Текстовый документ.txt",
     "01_Dashboard/01_Hall_of_Fame",
     "01_Dashboard 1",
@@ -206,8 +210,6 @@
     "04_Zettelkasten/03_Maps",
     "04_Zettelkasten/02_Concepts",
     "04_Zettelkasten/01_Sources.md",
-    "04_Zettelkasten/01_Sources",
-    "07_Assets/Pictures",
-    "99_System/Scripts"
+    "04_Zettelkasten/01_Sources"
   ]
 }

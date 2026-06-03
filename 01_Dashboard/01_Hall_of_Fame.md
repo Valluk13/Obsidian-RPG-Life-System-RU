@@ -1,7 +1,6 @@
 ---
-unlocked_badges: []
+unlocked_badges:
 ---
-
 ```dataviewjs
 (async () => {
     const container = this.container;
@@ -50,7 +49,6 @@ unlocked_badges: []
             "shame": { title: "💀 Аллея Позора", desc: "Ироничные статусы за слитое время.", bg: "rgba(231, 76, 60, 0.02)" }
         };
 
-        // ИСПРАВЛЕНИЕ: Категория eco теперь завязана на реальный ctx.currentGold вместо ctx.lifetimeGold
         const allAchievements = [
             { id: "f_1", cat: "focus", type: "auto", icon: "🥉", title: "Первая кровь", desc: "Наработать 1 час фокуса", req: 1, current: totalFocusHours, rewardXp: 50, rewardGp: 25 },
             { id: "f_5", cat: "focus", type: "auto", icon: "🥉", title: "Вкатывание", desc: "Наработать 5 часов фокуса", req: 5, current: totalFocusHours, rewardXp: 100, rewardGp: 50 },
@@ -181,16 +179,23 @@ unlocked_badges: []
                     btn.innerText = ach.type === 'irony' ? "ПОЗОРИЩЕ" : "ЗАБРАТЬ";
                     
                     btn.addEventListener('click', async () => {
+                        if (window.isRPGTransactionActive) return;
+                        window.isRPGTransactionActive = true;
+                        
                         btn.disabled = true; 
                         btn.innerText = "⏳ ...";
                         
                         try {
+                            let isEarnedNow = false;
                             await app.fileManager.processFrontMatter(hofFile, (fMatter) => {
                                 if (!fMatter.unlocked_badges) fMatter.unlocked_badges = [];
-                                if (!fMatter.unlocked_badges.includes(ach.id)) fMatter.unlocked_badges.push(ach.id);
+                                if (!fMatter.unlocked_badges.includes(ach.id)) {
+                                    fMatter.unlocked_badges.push(ach.id);
+                                    isEarnedNow = true;
+                                }
                             });
                             
-                            if ((ach.rewardXp > 0 || ach.rewardGp > 0) && profileFile) {
+                            if (isEarnedNow && (ach.rewardXp > 0 || ach.rewardGp > 0) && profileFile) {
                                 await app.fileManager.processFrontMatter(profileFile, (pMatter) => {
                                     pMatter.bonus_xp = (parseInt(pMatter.bonus_xp) || 0) + ach.rewardXp;
                                     pMatter.bonus_gold = (parseInt(pMatter.bonus_gold) || 0) + ach.rewardGp;
@@ -203,6 +208,7 @@ unlocked_badges: []
                             new Notice("Ошибка при сохранении: " + err.message);
                             btn.disabled = false;
                         } finally {
+                            window.isRPGTransactionActive = false;
                             setTimeout(() => {
                                 app.commands.executeCommandById("dataview:dataview-refresh-views");
                             }, 100);

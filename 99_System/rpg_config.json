@@ -1,0 +1,69 @@
+{
+    "game_balance": {
+        "journalPath": "\"05_Journal\"",
+        "zettelPath": "\"04_Zettelkasten\"",
+        "maxHp": 100,
+        "potionHeal": 25,
+        "xpPerLevel": 1000,
+        "creditLimit": -500,
+        "passiveHpLoss": 10,
+        "passiveHpGain": 10,
+        "focusThreshold": 60,
+        "decayDays": 14
+    },
+    "difficulties": {
+        "легкий": {
+            "xp": 20,
+            "gp": 25,
+            "dmg": 5
+        },
+        "средний": {
+            "xp": 50,
+            "gp": 50,
+            "dmg": 15
+        },
+        "сложный": {
+            "xp": 100,
+            "gp": 100,
+            "dmg": 30
+        }
+    },
+    "life_areas": {},
+    "levels": [
+        {
+            "minLevel": 1,
+            "title": "🔮 Адепт-Новичок"
+        },
+        {
+            "minLevel": 10,
+            "title": "📚 Искатель Знаний"
+        },
+        {
+            "minLevel": 25,
+            "title": "📐 Магистр Уравнений"
+        },
+        {
+            "minLevel": 50,
+            "title": "💻 Разрушитель Кода"
+        },
+        {
+            "minLevel": 100,
+            "title": "🌌 Верховный Мудрец БД"
+        }
+    ],
+    "custom_habits": [],
+    "shop_items": [
+        {
+            "id": "potion",
+            "name": "Зелье Лечения (+25 HP)",
+            "cost": 150,
+            "active": true
+        },
+        {
+            "id": "dayoff",
+            "name": "Полный день отдыха",
+            "cost": 1200,
+            "active": true
+        }
+    ]
+}

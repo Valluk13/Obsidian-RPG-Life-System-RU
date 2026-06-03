@@ -1,12 +1,4 @@
 ---
-archive_cutoff: 2026-05-01
-archive_xp: 0
-archive_gold: 0
-archive_focus_mins: 0
-archive_routine_mins: 0
-archive_rest_mins: 0
-archive_procrastination_spent: 0
-archive_quests_count: 0
 bonus_gold: 0
 bonus_xp: 0
 gold_spent: 0
@@ -18,7 +10,11 @@ inventory:
   games: 0
   social: 0
   dayoff: 0
-potions_history: {}
+potions_history:
+tokens_spent:
+  focus: 0
+  quests: 0
+  zettel: 0
 ---
 # Личный Кабинет
 ```dataviewjs
@@ -37,6 +33,10 @@ potions_history: {}
         
         const ctx = await engine.getSharedContext(dv, profilePage);
 
+        // --- ДИНАМИЧЕСКИЕ ЛИМИТЫ (Вместо хардкода 100 и 1000) ---
+        const maxHpConfig = engine.CONFIG.game_balance.maxHp || 100;
+        const xpPerLevelConfig = engine.CONFIG.game_balance.xpPerLevel || 1000;
+
         const styleEl = container.createEl('style');
         styleEl.innerHTML = `
           .rpg-hud { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; margin-bottom: 15px; }
@@ -52,7 +52,7 @@ potions_history: {}
 
         let isTraumatized = ctx.currentHp <= 0; 
         const hpLabel = isTraumatized ? "Энергия (⚠️ ТРАВМА: Получаемое золото x0.5)" : "Энергия Персонажа (HP)";
-        const safeHpColor = isTraumatized ? '#c0392b' : (ctx.currentHp > 50 ? '#2ecc71' : (ctx.currentHp > 20 ? '#e67e22' : '#e74c3c'));
+        const safeHpColor = isTraumatized ? '#c0392b' : (ctx.currentHp > (maxHpConfig/2) ? '#2ecc71' : (ctx.currentHp > (maxHpConfig/5) ? '#e67e22' : '#e74c3c'));
 
         const div = container.createEl('div');
         let html = '<div class="rpg-wrapper">';
@@ -67,9 +67,9 @@ potions_history: {}
                   '<div style="margin-top: 15px;">' +
                     '<div style="display: flex; justify-content: space-between; font-size: 0.85em; color: ' + (isTraumatized ? '#e74c3c' : 'inherit') + ';">' +
                       '<span>' + hpLabel + '</span>' +
-                      '<b>' + ctx.currentHp + ' / 100</b>' +
+                      '<b>' + ctx.currentHp + ' / ' + maxHpConfig + '</b>' +
                     '</div>' +
-                    '<div class="hp-bar-wrapper"><div class="hp-bar" style="width: ' + ctx.currentHp + '%; background: ' + safeHpColor + ';"></div></div>' +
+                    '<div class="hp-bar-wrapper"><div class="hp-bar" style="width: ' + Math.min(100, Math.floor((ctx.currentHp / maxHpConfig) * 100)) + '%; background: ' + safeHpColor + ';"></div></div>' +
                   '</div>' +
                   '<div class="stats-row">' +
                     '<div class="stat-box"><div>💰 Кошелек</div><div class="stat-val" style="color: #f1c40f;">' + ctx.currentGold + ' GP</div></div>' +
@@ -79,7 +79,7 @@ potions_history: {}
                   '<div style="margin-top: 20px;">' +
                     '<div style="display: flex; justify-content: space-between; font-size: 0.8em; color: var(--text-muted);">' +
                       '<span>Опыт текущего ранга (XP)</span>' +
-                      '<span>' + ctx.xpInCurrentLevel + ' / 1000 XP (' + ctx.progressPercent + '%)</span>' +
+                      '<span>' + ctx.xpInCurrentLevel + ' / ' + xpPerLevelConfig + ' XP (' + ctx.progressPercent + '%)</span>' +
                     '</div>' +
                     '<div class="xp-bar-wrapper"><div class="xp-bar" style="width: ' + ctx.progressPercent + '%;"></div></div>' +
                   '</div>' +
@@ -91,7 +91,7 @@ potions_history: {}
     }
 })();
 ```
-# Аналитика затраченного времени 
+# Аналитика затраченного времени
 ```dataviewjs
 (async () => {
     const container = this.container;
@@ -104,15 +104,40 @@ potions_history: {}
         const profilePage = dv.page("01_Dashboard/00_Profile.md");
         const ctx = await engine.getSharedContext(dv, profilePage);
 
-        const { timeStats, todayStats, globalTimeStats, monthTagMap, globalTagMap } = ctx;
+        const { timeStats, globalTimeStats, monthTagMap, globalTagMap } = ctx;
 
-        const formatHours = (m) => m >= 60 ? `${Math.floor(m / 60)}ч ${m % 60}м` : `${m}м`;
+        // ПАТЧ 2: Элегантное форматирование времени
+        const formatHours = (m) => {
+            if (m === 0) return "0м";
+            const hrs = Math.floor(m / 60);
+            const mins = m % 60;
+            if (hrs > 0 && mins === 0) return `${hrs}ч`;
+            if (hrs > 0) return `${hrs}ч ${mins}м`;
+            return `${mins}м`;
+        };
+        
         const getPct = (m, total) => total > 0 ? Math.floor((m / total) * 100) : 0;
 
         const dashboard = container.createEl('div');
         dashboard.style.cssText = "display: flex; flex-direction: column; gap: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 20px; border-radius: 10px; margin-top: 15px; box-shadow: none !important;";
 
-        const todayTotal = todayStats.focus + todayStats.routine + todayStats.rest + todayStats.procrastinate;
+        // ПАТЧ 1: Самостоятельное вычисление "СЕГОДНЯ" с учетом отсечки 4:00 утра
+        let logicalToday = window.moment();
+        if (logicalToday.hour() < 4) logicalToday.subtract(1, 'days');
+        const logicalTodayStr = logicalToday.format("YYYY-MM-DD");
+
+        let logicalTodayStats = { focus: 0, routine: 0, rest: 0, procrastinate: 0 };
+        if (ctx.logsArray) {
+            const todayLog = ctx.logsArray.find(p => p.file.name === logicalTodayStr);
+            if (todayLog) {
+                logicalTodayStats.focus = parseInt(todayLog.focus_mins) || 0;
+                logicalTodayStats.routine = parseInt(todayLog.routine_mins) || 0;
+                logicalTodayStats.rest = parseInt(todayLog.rest_mins) || 0;
+                logicalTodayStats.procrastinate = parseInt(todayLog.waste_mins) || 0;
+            }
+        }
+
+        const todayTotal = logicalTodayStats.focus + logicalTodayStats.routine + logicalTodayStats.rest + logicalTodayStats.procrastinate;
         const todaySec = dashboard.createEl('div');
         todaySec.createEl('div', { text: "⚡ Энергия за сегодня" }).style.cssText = "font-size: 0.85em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold; margin-bottom: 8px;";
         
@@ -127,12 +152,12 @@ potions_history: {}
         };
 
         if (todayTotal > 0) {
-            if (todayStats.focus > 0) createStatBox(todayGrid, "Фокус", todayStats.focus, "#e74c3c");
-            if (todayStats.routine > 0) createStatBox(todayGrid, "Рутина", todayStats.routine, "#e67e22");
-            if (todayStats.rest > 0) createStatBox(todayGrid, "Отдых", todayStats.rest, "#2ecc71");
-            if (todayStats.procrastinate > 0) createStatBox(todayGrid, "Слив", todayStats.procrastinate, "#95a5a6");
+            if (logicalTodayStats.focus > 0) createStatBox(todayGrid, "Фокус", logicalTodayStats.focus, "#e74c3c");
+            if (logicalTodayStats.routine > 0) createStatBox(todayGrid, "Рутина", logicalTodayStats.routine, "#e67e22");
+            if (logicalTodayStats.rest > 0) createStatBox(todayGrid, "Отдых", logicalTodayStats.rest, "#2ecc71");
+            if (logicalTodayStats.procrastinate > 0) createStatBox(todayGrid, "Слив", logicalTodayStats.procrastinate, "#95a5a6");
         } else {
-            todayGrid.createEl('div', { text: "Журнал активности за сегодня пуст.", attr: { style: "font-size: 0.9em; color: var(--text-muted); font-style: italic;" }});
+            todayGrid.createEl('div', { text: `Журнал активности за ${logicalToday.format("DD.MM.YYYY")} пуст.`, attr: { style: "font-size: 0.9em; color: var(--text-muted); font-style: italic;" }});
         }
         
         dashboard.createEl('hr', { attr: { style: "border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 0;" }});
@@ -177,7 +202,7 @@ potions_history: {}
             });
         };
 
-        renderBalanceBar(dashboard, "📊 Баланс распределения (Текущий Месяц)", timeStats);
+        renderBalanceBar(dashboard, "📊 Баланс распределения (Теку Месяц)", timeStats);
         renderBalanceBar(dashboard, "🌍 Глобальный баланс (Всё Время)", globalTimeStats);
 
         const tagSection = container.createEl('div');
@@ -224,15 +249,15 @@ potions_history: {}
             }
         };
 
-        renderTagBlock(tagSection, "🎯 Фокус по тегам (Месяц)", monthTagMap, "#3498db");
-        renderTagBlock(tagSection, "🌐 Опыт по тегам (Всё время)", globalTagMap, "#9b59b6");
+        if (monthTagMap) renderTagBlock(tagSection, "🎯 Фокус по тегам (Месяц)", monthTagMap, "#3498db");
+        if (globalTagMap) renderTagBlock(tagSection, "🌐 Опыт по тегам (Всё время)", globalTagMap, "#9b59b6");
 
     } catch(e) {
         container.createEl('p', {text: "Ошибка аналитики: " + e.message, attr: {style: "color:red;"}});
     }
 })();
 ```
-# Карта игровой активности
+# Карта игровой активности 
 ```dataviewjs
 (async () => {
     const container = this.container;
@@ -248,17 +273,17 @@ potions_history: {}
         const profilePage = dv.page("01_Dashboard/00_Profile.md");
         const ctx = await engine.getSharedContext(dv, profilePage);
 
-        // --- 1. СБОР ДАННЫХ ---
-        const allJournals = dv.pages('"05_Journal"');
         const fMap = {};
-        for (let p of allJournals) {
-            fMap[p.file.name] = parseInt(p.focus_mins) || 0;
+        if (ctx.logsArray) {
+            for (let p of ctx.logsArray) {
+                fMap[p.file.name] = parseInt(p.focus_mins) || 0;
+            }
         }
 
-        const today = window.moment();
+        let today = window.moment();
+        if (today.hour() < 4) today.subtract(1, 'days');
         const todayStr = today.format("YYYY-MM-DD");
 
-        // --- 2. СТРИКИ ---
         let currentStreak = 0;
         let maxStreak = 0;
         let tempStreak = 0;
@@ -281,7 +306,7 @@ potions_history: {}
             }
         }
 
-        let streakCheckDate = window.moment();
+        let streakCheckDate = window.moment(today);
         if (!fMap[todayStr] || fMap[todayStr] === 0) {
             streakCheckDate.subtract(1, 'days');
         }
@@ -295,7 +320,6 @@ potions_history: {}
 
         const totalHours = Math.floor((ctx.globalTimeStats?.totalMinutes || 0) / 60);
 
-        // --- 3. СТИЛИ ИНТЕРФЕЙСА ---
         const styleEl = container.createEl('style');
         styleEl.innerHTML = `
             .hm-wrapper { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 20px; border-radius: 12px; margin-top: 15px; }
@@ -303,10 +327,8 @@ potions_history: {}
             .hm-stat-card { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 12px 18px; border-radius: 8px; flex: 1; min-width: 120px; }
             .hm-stat-title { font-size: 0.75em; color: var(--text-muted); text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px; }
             .hm-stat-val { font-size: 1.6em; font-weight: 900; font-family: monospace; }
-            
             .hm-section-title { font-size: 1.1em; color: var(--text-normal); font-weight: bold; margin-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 5px; display: flex; align-items: center; justify-content: space-between; }
             
-            /* Стили для Календаря Месяца (Полноразмерный) */
             .month-panel { background: rgba(0,0,0,0.15); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.04); margin-bottom: 20px; }
             .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
             .month-day-lbl { text-align: center; font-size: 0.7em; color: var(--text-muted); font-weight: bold; padding-bottom: 4px; text-transform: uppercase; }
@@ -314,7 +336,6 @@ potions_history: {}
             .month-cell:hover:not(.mc-empty):not(.hm-future) { transform: translateY(-2px) scale(1.05); box-shadow: 0 4px 12px rgba(0, 255, 102, 0.3); color: #fff; z-index: 5; border: 1px solid #fff !important; }
             .mc-empty { background: transparent; border: none; pointer-events: none; }
             
-            /* Стили для Годового Скролла */
             .year-panel { padding-top: 10px; }
             .hm-scroll-box { overflow-x: auto; padding-bottom: 10px; width: 100%; display: flex; flex-direction: column; gap: 5px; transform: translateZ(0); }
             .hm-scroll-box::-webkit-scrollbar { height: 6px; }
@@ -328,7 +349,6 @@ potions_history: {}
             .hm-cell { width: 13px; height: 13px; border-radius: 3px; cursor: pointer; transition: transform 0.15s; }
             .hm-cell:hover:not(.hm-future):not(.mc-empty) { transform: scale(1.3); z-index: 10; border: 1px solid #fff; box-shadow: 0 0 10px rgba(0,255,102,0.5); }
             
-            /* Общая палитра "Изумрудная Бездна" */
             .hm-future { background: rgba(255,255,255,0.01); border: 1px dashed rgba(255,255,255,0.03); color: rgba(255,255,255,0.1); pointer-events: none; }
             .hm-lvl-0 { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
             .hm-lvl-1 { background: #004d22; border: 1px solid #00662d; color: #fff; }
@@ -338,12 +358,9 @@ potions_history: {}
             .hm-today { border: 1px solid var(--text-accent) !important; color: var(--text-accent); }
         `;
 
-        // ОПТИМИЗАЦИЯ 1: Теневой DOM (Detached Element). 
-        // Мы не добавляем wrapper на страницу сразу, чтобы избежать 400 Reflow-перерисовок.
         const wrapper = document.createElement('div');
         wrapper.className = 'hm-wrapper';
 
-        // --- 4. РЕНДЕР HUD ---
         const hudPanel = wrapper.createEl('div', { cls: 'hm-hud' });
         const statCard = (title, val, color) => {
             const card = hudPanel.createEl('div', { cls: 'hm-stat-card', attr: { style: `border-left: 4px solid ${color};` } });
@@ -355,7 +372,6 @@ potions_history: {}
         statCard("Текущий стрик", `${currentStreak} дн.`, "#f39c12");
         statCard("Рекордный стрик", `${maxStreak} дн.`, "#9b59b6");
 
-        // --- ФУНКЦИЯ ОПРЕДЕЛЕНИЯ ЦВЕТА ---
         const getLvlClass = (mins, isFuture) => {
             if (isFuture) return 'hm-future';
             if (mins === 0) return 'hm-lvl-0';
@@ -369,11 +385,13 @@ potions_history: {}
             if (!isFuture) {
                 let hrs = Math.floor(mins / 60);
                 let m = mins % 60;
-                let timeText = hrs > 0 ? `${hrs}ч ${m}м` : (mins > 0 ? `${m} мин` : 'Отдых / Нет данных');
+                let timeText = hrs > 0 ? (m > 0 ? `${hrs}ч ${m}м` : `${hrs}ч`) : (mins > 0 ? `${m} мин` : 'Отдых / Нет данных');
                 el.title = `${displayDate} | ${timeText}`;
 
                 el.addEventListener('click', () => {
-                    const path = `05_Journal/${dateStr}.md`;
+                    const journalFolderRaw = engine.CONFIG.journalPath || "05_Journal";
+                    const cleanJournalFolder = journalFolderRaw.replace(/"/g, '');
+                    const path = `${cleanJournalFolder}/${dateStr}.md`;
                     const file = app.vault.getAbstractFileByPath(path);
                     if (file) app.workspace.getLeaf(false).openFile(file);
                     else new Notice(`Дневник за ${displayDate} еще не создан.`);
@@ -381,22 +399,20 @@ potions_history: {}
             }
         };
 
-        // --- 5. РЕНДЕР МЕСЯЦА (Широкая сетка) ---
         const monthPanel = wrapper.createEl('div', { cls: 'month-panel' });
         monthPanel.createEl('div', { cls: 'hm-section-title', text: `📅 Месяц (${today.format("MMMM YYYY")})` });
         
         const mGrid = monthPanel.createEl('div', { cls: 'month-grid' });
         ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].forEach(d => mGrid.createEl('div', { cls: 'month-day-lbl', text: d }));
 
-        const startOfMonth = window.moment().startOf('month');
+        const startOfMonth = window.moment(today).startOf('month');
         const daysInMonth = startOfMonth.daysInMonth();
-        const startWeekday = startOfMonth.isoWeekday(); // 1-7
+        const startWeekday = startOfMonth.isoWeekday(); 
 
         for(let i = 1; i < startWeekday; i++) {
             mGrid.createEl('div', { cls: 'month-cell mc-empty' });
         }
 
-        // ОПТИМИЗАЦИЯ 2: Мутируем одну дату, вместо создания новых
         let curMonthDay = window.moment(startOfMonth);
         for(let i = 0; i < daysInMonth; i++) {
             const dateStr = curMonthDay.format("YYYY-MM-DD");
@@ -412,14 +428,13 @@ potions_history: {}
             curMonthDay.add(1, 'days');
         }
 
-        // --- 6. РЕНДЕР ГОДА (Горизонтальный скролл) ---
         const yearPanel = wrapper.createEl('div', { cls: 'year-panel' });
         yearPanel.createEl('div', { cls: 'hm-section-title', text: `🔥 Годовая Летопись (${today.format("YYYY")})` });
         
         const scrollBox = yearPanel.createEl('div', { cls: 'hm-scroll-box' });
         
-        const startOfYear = window.moment().startOf('year');
-        const endOfYear = window.moment().endOf('year');
+        const startOfYear = window.moment(today).startOf('year');
+        const endOfYear = window.moment(today).endOf('year');
         const totalDaysYear = endOfYear.diff(startOfYear, 'days') + 1;
         const yearStartWeekday = startOfYear.isoWeekday();
 
@@ -431,21 +446,19 @@ potions_history: {}
             if (curLabelDay.month() !== currentMonth) {
                 currentMonth = curLabelDay.month();
                 const colIndex = Math.floor((i + yearStartWeekday - 1) / 7);
-                const leftPos = colIndex * 17; // 13px cell + 4px gap
+                const leftPos = colIndex * 17; 
                 monthsRow.createEl('span', { cls: 'hm-month-label', text: curLabelDay.format("MMM"), attr: { style: `left: ${leftPos}px;` } });
             }
             curLabelDay.add(1, 'days');
         }
 
         const gridContainer = scrollBox.createEl('div', { cls: 'hm-grid-container' });
-        
         const daysCol = gridContainer.createEl('div', { cls: 'hm-days-column', attr: { style: `grid-template-rows: repeat(7, 13px);` } });
         ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].forEach(d => {
             daysCol.createEl('div', { cls: 'hm-day-label', text: d, attr: { style: `height: 13px;` } });
         });
 
         const yGrid = gridContainer.createEl('div', { cls: 'hm-cells-grid', attr: { style: `grid-template-rows: repeat(7, 13px);` } });
-        
         for (let i = 1; i < yearStartWeekday; i++) {
             yGrid.createEl('div', { cls: 'hm-cell mc-empty' });
         }
@@ -469,11 +482,8 @@ potions_history: {}
             curYearDay.add(1, 'days');
         }
 
-        // ВАЖНО: Только сейчас, когда все 400+ DOM-элементов созданы в черновике,
-        // мы ОДНИМ действием вставляем их на страницу. 
         container.appendChild(wrapper);
 
-        // Авто-скролл к сегодняшнему дню
         setTimeout(() => {
             if (todayIndex !== -1) {
                 const colIndex = Math.floor((todayIndex + yearStartWeekday - 1) / 7);
@@ -499,7 +509,9 @@ potions_history: {}
         const profilePage = dv.page("01_Dashboard/00_Profile.md");
         const ctx = await engine.getSharedContext(dv, profilePage);
         
-        const todayStr = window.moment().format("YYYY-MM-DD");
+        let today = window.moment();
+        if (today.hour() < 4) today.subtract(1, 'days');
+        const todayStr = today.format("YYYY-MM-DD");
 
         const debtsDiv = container.createEl('div');
         debtsDiv.style.cssText = "background: rgba(231, 76, 60, 0.05); border: 1px solid rgba(231, 76, 60, 0.2); padding: 20px; border-radius: 10px; margin-top: 15px;";
@@ -511,9 +523,10 @@ potions_history: {}
         let hasTasks = false;
         const ul = debtsDiv.createEl('div', { attr: { style: "display: flex; flex-direction: column; gap: 10px;" }});
 
-        let sortedLogs = [...ctx.logsArray].sort((a, b) => a.file.name.localeCompare(b.file.name));        
+        let sortedLogs = [...(ctx.logsArray || [])].sort((a, b) => a.file.name.localeCompare(b.file.name));        
         for (let log of sortedLogs) {
             let fileDate = log.file.name;
+            // Пропускаем сегодняшний день и все старые архивы
             if (fileDate >= todayStr || fileDate < ctx.archiveCutoff) continue; 
 
             const tasksArray = log.file.tasks ? (log.file.tasks.values || Array.from(log.file.tasks)) : [];

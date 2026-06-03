@@ -1,3 +1,5 @@
+# 🎒 Рюкзак Инвентаря
+
 ```dataviewjs
 (async () => {
     const container = this.container;
@@ -23,107 +25,174 @@
         styleEl.innerHTML = 
           ".rpg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }" +
           ".inv-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 18px; border-radius: 10px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }" +
-          ".inv-btn { background: #2ecc71; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; margin-top: 15px; transition: 0.2s; }" +
-          ".inv-btn:disabled { opacity: 0.3; cursor: not-allowed; background: rgba(255,255,255,0.1); color: var(--text-muted); }" +
-          ".sell-btn { background: none; border: 1px dashed rgba(231, 76, 60, 0.4); color: #e74c3c; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85em; font-weight: bold; margin-top: 10px; width: 100%; transition: 0.2s; }" +
-          ".sell-btn:hover:not(:disabled) { background: rgba(231, 76, 60, 0.05); border-color: #e74c3c; }";
+          ".inv-controls { display: flex; gap: 10px; margin-top: 15px; }" +
+          ".inv-btn { background: var(--interactive-accent); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; flex-grow: 1; font-weight: bold; font-size: 0.85em; transition: 0.2s; height: 32px; display: inline-flex; align-items: center; justify-content: center; }" +
+          ".inv-btn:disabled { opacity: 0.5; cursor: not-allowed; }" +
+          ".sell-btn { background: rgba(46, 204, 113, 0.05); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.2); }";
+
+        const itemDb = engine.CONFIG.itemDb || {};
+        const iconMap = { potion: "🧪", walk: "🏃‍♂️", tea: "🍵", youtube: "📺", games: "🎮", social: "📱", dayoff: "🛌" };
+        
+        // СВЯЗЫВАНИЕ БАЛАНСА: Вытаскиваем цены напрямую из активного конфига лавки
+        const secureBaseCosts = {};
+        if (Array.isArray(engine.CONFIG.shop_items)) {
+            engine.CONFIG.shop_items.forEach(item => { secureBaseCosts[item.id] = item.cost; });
+        }
+        const coreFallbacks = { potion: 150, walk: 60, tea: 120, youtube: 180, games: 220, social: 250, dayoff: 1200 };
 
         let hasItems = false;
-        for (let key in inventory) {
-            if (inventory[key] > 0) hasItems = true;
-        }
-
-        if (!hasItems) {
-            container.createEl('div', { text: "Ваш рюкзак пуст.", attr: { style: "color: var(--text-muted); font-size: 0.9em; padding: 10px 0; text-align: center;" }});
-            return;
-        }
-
         for (let id in inventory) {
-            let qty = parseInt(inventory[id]);
+            let qty = parseInt(inventory[id]) || 0;
             if (qty <= 0) continue;
+            hasItems = true;
 
-            const itemInfo = engine.CONFIG.itemDb[id] || { name: 'Неизвестный предмет', cost: 0 };
-            
+            const itemInfo = itemDb[id] || { name: id, cost: 0 };
+            const secureSellPrice = secureBaseCosts[id] || itemInfo.cost || coreFallbacks[id] || 0; 
+
             const card = gridDiv.createEl('div', {cls: 'inv-card'});
-            card.createEl('div', {text: itemInfo.name, attr: {style: 'font-weight: bold; font-size: 1.05em; margin-bottom: 6px; color: var(--text-normal);'}});
-            const qtyDiv = card.createEl('div', {text: "В наличии: " + qty + " шт.", attr: {style: 'color: #3498db; font-weight: bold; margin-bottom: auto; font-size: 0.95em;'}});
+            const icon = iconMap[id] || "📦";
+            card.createEl('div', {text: icon + " " + itemInfo.name, attr: {style: 'font-weight: bold; margin-bottom: 5px; color: var(--text-normal);'}});
+            const qtyDiv = card.createEl('div', {text: "В наличии: " + qty + " шт.", attr: {style: 'font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px;'}});
 
-            const useBtn = card.createEl('button', { text: 'Применить', cls: 'inv-btn' });
+            const controls = card.createEl('div', {cls: 'inv-controls'});
             
-            if (id === 'potion' && ctx.currentHp >= 100) {
-                useBtn.disabled = true;
-                useBtn.innerText = "HP полное";
-            } else {
-                useBtn.addEventListener('click', async () => {
-                    if (window.isRPGTransactionActive) return;
-                    window.isRPGTransactionActive = true;
-                    useBtn.disabled = true;
-                    const todayStr = window.moment().format("YYYY-MM-DD");
+            const actionBtn = controls.createEl('button', {
+                text: id === 'potion' ? 'Выпить' : 'Активировать', 
+                cls: 'inv-btn'
+            });
 
-                    try {
-                        await app.fileManager.processFrontMatter(tFile, (f) => {
-                            f.inventory[id] = Math.max(0, (parseInt(f.inventory[id]) || 0) - 1);
-                            if (id === 'potion') {
-                                if (!f.potions_history) f.potions_history = {};
-                                f.potions_history[todayStr] = (parseInt(f.potions_history[todayStr]) || 0) + 1;
-                            }
-                        });
+            const sellBtn = controls.createEl('button', {
+                text: "Продать (+" + secureSellPrice + " GP)", 
+                cls: 'inv-btn'
+            });
+            sellBtn.style.cssText = 'background: rgba(46, 204, 113, 0.05); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.2);';
+            
+            const getLogicalTargetDate = () => {
+                let currentMoment = window.moment();
+                if (currentMoment.hour() < 4) { currentMoment.subtract(1, 'days'); }
+                return currentMoment.format("YYYY-MM-DD");
+            };
 
-                        engine.invalidateCache();
-                        qty -= 1;
-                        qtyDiv.innerText = "В наличии: " + qty + " шт.";
-
-                        if (id === 'potion') new Notice("✅ Здоровье восстановлено (+25 HP).");
-                        else new Notice("✅ Использовано: " + itemInfo.name + ".");
-                    } finally {
-                        setTimeout(() => { 
-                            if (qty > 0) {
-                                if (useBtn && document.body.contains(useBtn)) {
-                                    useBtn.innerText = "Применить";
-                                    useBtn.disabled = false;
-                                }
-                            } else {
-                                if (useBtn && document.body.contains(useBtn)) useBtn.innerText = "Закончилось";
-                            }
-                            window.isRPGTransactionActive = false;
-                        }, 500);
-                    }
-                });
-            }
-
-            const sellBtn = card.createEl('button', { text: "Продать (+" + itemInfo.cost + " GP)", cls: 'sell-btn' });
-            sellBtn.addEventListener('click', async () => {
+            actionBtn.addEventListener('click', async () => {
                 if (window.isRPGTransactionActive) return;
                 window.isRPGTransactionActive = true;
-                sellBtn.disabled = true;
+                gridDiv.style.pointerEvents = 'none';
+                actionBtn.disabled = true;
+                
                 try {
-                    await app.fileManager.processFrontMatter(tFile, (f) => {
-                        f.inventory[id] = Math.max(0, (parseInt(f.inventory[id]) || 0) - 1);
-                        f.bonus_gold = (parseInt(f.bonus_gold) || 0) + itemInfo.cost;
-                    });
+                    const targetDayStr = getLogicalTargetDate();
                     
+                    if (id === 'potion') {
+                        await app.fileManager.processFrontMatter(tFile, (f) => {
+                            if (f.inventory) f.inventory[id] = Math.max(0, (parseInt(f.inventory[id]) || 0) - 1);
+                            if (!f.potions_history) f.potions_history = {};
+                            f.potions_history[targetDayStr] = (parseInt(f.potions_history[targetDayStr]) || 0) + 1;
+                        });
+                        engine.invalidateCache();
+                        new Notice(`🧪 Применено Зелье Лечения! Игровой день: ${targetDayStr}.`);
+                        
+                        qty -= 1;
+                        qtyDiv.innerText = "В наличии: " + qty + " шт.";
+                        if (qty <= 0) {
+                            actionBtn.innerText = "Истрачено"; actionBtn.disabled = true; sellBtn.disabled = true;
+                        }
+                        setTimeout(() => { app.commands.executeCommandById("dataview:dataview-refresh-views"); }, 200);
+                        
+                    } else {
+                        const journalFolderRaw = engine.CONFIG.journalPath || "05_Journal";
+                        const cleanJournalFolder = journalFolderRaw.replace(/"/g, '');
+                        const todayPath = `${cleanJournalFolder}/${targetDayStr}.md`;
+                        const todayFile = app.vault.getAbstractFileByPath(todayPath);
+                        
+                        if (!todayFile) {
+                            new Notice(`❌ Для использования награды сначала создайте дневник на игровой день (${targetDayStr})!`);
+                            actionBtn.disabled = false; gridDiv.style.pointerEvents = 'auto'; window.isRPGTransactionActive = false; return;
+                        }
+                        
+                        await app.fileManager.processFrontMatter(tFile, (f) => {
+                            if (f.inventory && f.inventory[id]) {
+                                f.inventory[id] = Math.max(0, (parseInt(f.inventory[id]) || 0) - 1);
+                            }
+                        });
+                        
+                        await app.fileManager.processFrontMatter(todayFile, (fm) => {
+                            if (!Array.isArray(fm.used_items)) fm.used_items = [];
+                            fm.used_items.push(id);
+                            if (id === 'dayoff') fm.day_off = true; 
+                        });
+                        
+                        engine.invalidateCache();
+                        new Notice(`✨ Активировано: ${itemInfo.name}. Лог записан в игровой день ${targetDayStr}.`);
+                        
+                        qty -= 1;
+                        qtyDiv.innerText = "В наличии: " + qty + " шт.";
+                        if (qty <= 0) {
+                            actionBtn.innerText = "Истрачено"; actionBtn.disabled = true; sellBtn.disabled = true;
+                        }
+                        setTimeout(() => { app.commands.executeCommandById("dataview:dataview-refresh-views"); }, 200);
+                    }
+                } catch(err) {
+                    new Notice("❌ Ошибка применения предмета: " + err.message);
+                    if (qty > 0) actionBtn.disabled = false;
+                } finally {
+                    gridDiv.style.pointerEvents = 'auto'; window.isRPGTransactionActive = false;
+                }
+            });
+
+            sellBtn.addEventListener('click', async () => {
+                if (window.isRPGTransactionActive) return;
+                window.isRPGTransactionActive = true; gridDiv.style.pointerEvents = 'none';
+                sellBtn.disabled = true; sellBtn.innerText = "⏳...";
+
+                try {
+                    const journalFolderRaw = engine.CONFIG.journalPath || "05_Journal";
+                    const cleanJournalFolder = journalFolderRaw.replace(/"/g, '');
+                    const journalPages = dv.pages(`"${cleanJournalFolder}"`).where(p => Array.isArray(p.purchases) && p.purchases.includes(id)).sort(p => p.file.name, 'desc');
+                    
+                    let logRemoved = false; let targetDayStr = "крафта / запасов";
+
+                    if (journalPages.length > 0) {
+                        const fileToUpdate = app.vault.getAbstractFileByPath(journalPages[0].file.path);
+                        if (fileToUpdate) {
+                            await app.fileManager.processFrontMatter(fileToUpdate, (fm) => {
+                                if (Array.isArray(fm.purchases)) {
+                                    const idx = fm.purchases.indexOf(id);
+                                    if (idx !== -1) { fm.purchases.splice(idx, 1); logRemoved = true; }
+                                }
+                            });
+                            if (logRemoved) targetDayStr = fileToUpdate.basename;
+                        }
+                    }
+
+                    await app.fileManager.processFrontMatter(tFile, (f) => {
+                        if (f.inventory && f.inventory[id]) { f.inventory[id] = Math.max(0, (parseInt(f.inventory[id]) || 0) - 1); }
+                        if (!logRemoved) { f.bonus_gold = (parseInt(f.bonus_gold) || 0) + secureSellPrice; }
+                    });
+
                     engine.invalidateCache();
                     const newCtx = await engine.buildContext(dv, profilePage);
                     window.dispatchEvent(new CustomEvent('rpg-balance-updated', { detail: { gold: newCtx.currentGold } }));
 
-                    qty -= 1;
-                    qtyDiv.innerText = "В наличии: " + qty + " шт.";
-
-                    new Notice("💰 Предмет продан! Вы получили " + itemInfo.cost + " GP.");
-                } finally {
+                    qty -= 1; qtyDiv.innerText = "В наличии: " + qty + " шт.";
+                    new Notice(`💰 Возврат успешен! Компенсация ${secureSellPrice} GP получена.`);
+                } catch (err) { new Notice("❌ Ошибка продажи: " + err.message); } 
+                finally {
                     setTimeout(() => { 
+                        gridDiv.style.pointerEvents = 'auto';
                         if (qty > 0) {
-                            if (sellBtn && document.body.contains(sellBtn)) {
-                                sellBtn.innerText = "Продать (+" + itemInfo.cost + " GP)";
-                                sellBtn.disabled = false;
-                            }
+                            if (sellBtn && document.body.contains(sellBtn)) { sellBtn.innerText = "Продать (+" + secureSellPrice + " GP)"; sellBtn.disabled = false; }
                         } else {
-                            if (sellBtn && document.body.contains(sellBtn)) sellBtn.innerText = "Продано";
+                            if (sellBtn && document.body.contains(sellBtn)) { sellBtn.innerText = "Продано"; sellBtn.disabled = true; }
+                            if (actionBtn && document.body.contains(actionBtn)) { actionBtn.innerText = "Истрачено"; actionBtn.disabled = true; }
                         }
                         window.isRPGTransactionActive = false;
-                    }, 500);
+                    }, 400);
                 }
             });
+        }
+
+        if (!hasItems) {
+            container.createEl('div', { text: "🎒 Твой рюкзак абсолютно пуст.", attr: {style: "font-style: italic; color: var(--text-muted); text-align: center; padding: 20px;"} });
         }
     } catch (e) {
         container.createEl('p', {text: "Ошибка инвентаря: " + e.message, attr: {style: "color:red;"}});
